@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from 'recharts';
 import { User, StudentProfile, Room, MeetingSession, Attendance, LateAbsentRequest, MoveOutRequest, Notification } from '../types';
 import SuccessModal from './SuccessModal';
@@ -110,25 +111,31 @@ export default function AdminDashboard({
 
   // Daily export (Specific meeting session)
   const handleExportDailyPDF = (session: any, roster: any[]) => {
-    setPrintData({
-      type: 'daily',
-      title: `Daily Attendance Log: ${session.title}`,
-      subtitle: `Official record for session conducted on ${new Date(session.started_at).toLocaleDateString()}`,
-      metadata: {
-        "Session ID": session.id,
-        "Started At": new Date(session.started_at).toLocaleString(),
-        "Ended At": session.ended_at ? new Date(session.ended_at).toLocaleString() : "Active Session",
-        "Total Count": roster.length,
-        "On-Time/Present": roster.filter((r: any) => r.status === 'present' || r.status === 'on-time' || r.status === 'on_time').length,
-        "Late Check-ins": roster.filter((r: any) => r.status === 'late').length,
-        "Absent Count": roster.filter((r: any) => r.status === 'absent').length
-      },
-      roster: roster
-    });
-    
-    setTimeout(() => {
-      window.print();
-    }, 150);
+    triggerConfirm(
+      "Confirm Daily Print/Export",
+      `Are you sure you want to generate and export a daily attendance log for "${session.title}"? This formats the log into a clean formal schema and opens your browser's printing dialog.`,
+      () => {
+        setPrintData({
+          type: 'daily',
+          title: `Daily Attendance Log: ${session.title}`,
+          subtitle: `Official record for session conducted on ${new Date(session.started_at).toLocaleDateString()}`,
+          metadata: {
+            "Session ID": session.id,
+            "Started At": new Date(session.started_at).toLocaleString(),
+            "Ended At": session.ended_at ? new Date(session.ended_at).toLocaleString() : "Active Session",
+            "Total Count": roster.length,
+            "On-Time/Present": roster.filter((r: any) => r.status === 'present' || r.status === 'on-time' || r.status === 'on_time').length,
+            "Late Check-ins": roster.filter((r: any) => r.status === 'late').length,
+            "Absent Count": roster.filter((r: any) => r.status === 'absent').length
+          },
+          roster: roster
+        });
+        
+        setTimeout(() => {
+          window.print();
+        }, 300);
+      }
+    );
   };
 
   // Monthly export (Aggregated metrics matching currently filtered year & month)
@@ -136,36 +143,42 @@ export default function AdminDashboard({
     const currentYearNum = historyYearFilter === 'all' ? new Date().getFullYear() : parseInt(historyYearFilter);
     const currentMonthNum = historyMonthFilter === 'all' ? (new Date().getMonth() + 1) : parseInt(historyMonthFilter);
 
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/admins/attendance/monthly-report?year=${currentYearNum}&month=${currentMonthNum}`);
-      if (!res.ok) throw new Error("Could not load monthly report");
-      const list = await res.json();
-      
-      setPrintData({
-        type: 'monthly',
-        title: `Monthly Attendance Consolidation Report`,
-        subtitle: `Consolidated record for ${historyMonthFilter === 'all' ? 'All Months' : 'Month ' + historyMonthFilter}, Year ${currentYearNum}`,
-        metadata: {
-          "Reporting Period": `${historyMonthFilter === 'all' ? 'Annual Summary' : 'Month ' + historyMonthFilter} / Year ${currentYearNum}`,
-          "Active Student Roster Size": list.length,
-          "Total Monthly Meetings Logged": historySessions.filter(s => 
-            (historyYearFilter === 'all' || s.year === currentYearNum) && 
-            (historyMonthFilter === 'all' || s.month === currentMonthNum)
-          ).length
-        },
-        roster: list
-      });
+    triggerConfirm(
+      "Confirm Monthly Print/Export",
+      `Are you sure you want to aggregate and print the monthly attendance consolidation report for ${historyMonthFilter === 'all' ? 'All Months' : 'Month ' + historyMonthFilter}, Year ${currentYearNum}?`,
+      async () => {
+        try {
+          setLoading(true);
+          const res = await fetch(`/api/admins/attendance/monthly-report?year=${currentYearNum}&month=${currentMonthNum}`);
+          if (!res.ok) throw new Error("Could not load monthly report");
+          const list = await res.json();
+          
+          setPrintData({
+            type: 'monthly',
+            title: `Monthly Attendance Consolidation Report`,
+            subtitle: `Consolidated record for ${historyMonthFilter === 'all' ? 'All Months' : 'Month ' + historyMonthFilter}, Year ${currentYearNum}`,
+            metadata: {
+              "Reporting Period": `${historyMonthFilter === 'all' ? 'Annual Summary' : 'Month ' + historyMonthFilter} / Year ${currentYearNum}`,
+              "Active Student Roster Size": list.length,
+              "Total Monthly Meetings Logged": historySessions.filter(s => 
+                (historyYearFilter === 'all' || s.year === currentYearNum) && 
+                (historyMonthFilter === 'all' || s.month === currentMonthNum)
+              ).length
+            },
+            roster: list
+          });
 
-      setTimeout(() => {
-        window.print();
-      }, 150);
-    } catch (e: any) {
-      console.error(e);
-      alert("Error printing monthly summary: " + e.message);
-    } finally {
-      setLoading(false);
-    }
+          setTimeout(() => {
+            window.print();
+          }, 300);
+        } catch (e: any) {
+          console.error(e);
+          alert("Error printing monthly summary: " + e.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+    );
   };
 
   // Fetch all datasets securely
@@ -2315,7 +2328,7 @@ export default function AdminDashboard({
       <LoadingOverlay isOpen={(loading && isFirstLoad) || submitting} message={(loading && isFirstLoad) ? "Synchronizing database records..." : "Processing request..."} />
 
       {/* --- OFFLINE/ONLINE PRINTER FRIENDLY REPORT DESIGN --- */}
-      {printData && (
+      {printData && createPortal(
         <div className="print-report-layout" style={{ color: 'black', background: 'white' }}>
           {/* Cover Header */}
           <div style={{ textAlign: 'center', marginBottom: '30px', fontFamily: 'serif' }}>
@@ -2426,7 +2439,8 @@ export default function AdminDashboard({
               <p style={{ margin: '5px 0 0 0', fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase' }}>DORMITORY DIRECTOR</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
 
