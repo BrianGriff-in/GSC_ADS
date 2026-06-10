@@ -46,6 +46,7 @@ export default function AdminDashboard({
   const [assigningStudentId, setAssigningStudentId] = useState<number | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
   const [assignRoomGenderFilter, setAssignRoomGenderFilter] = useState<'all' | 'male' | 'female'>('all');
+  const [reviewingRequests, setReviewingRequests] = useState<Record<string, 'approved' | 'denied'>>({});
 
   // Search, Gender filters inside Students List
   const [studentSearch, setStudentSearch] = useState('');
@@ -759,6 +760,8 @@ export default function AdminDashboard({
       "Review Excuse Submission",
       `Are you sure you want to set status of excuse request ID ${id} to ${status.toUpperCase()}?`,
       async () => {
+        // Set optimistic status and saving state immediately
+        setReviewingRequests(prev => ({ ...prev, [`excuse-${id}`]: status }));
         try {
           await fetch("/api/requests/excuse/review", {
             method: "POST",
@@ -770,9 +773,16 @@ export default function AdminDashboard({
               admin_name: username
             })
           });
-          fetchAllData();
+          await fetchAllData(true);
         } catch (e) {
           console.error(e);
+        } finally {
+          // Clear tracking
+          setReviewingRequests(prev => {
+            const next = { ...prev };
+            delete next[`excuse-${id}`];
+            return next;
+          });
         }
       }
     );
@@ -785,6 +795,8 @@ export default function AdminDashboard({
       "Review Move-out Application",
       `Are you sure you want to ${actText} move-out application for '${studentUser}'?`,
       async () => {
+        // Set optimistic status and saving state immediately
+        setReviewingRequests(prev => ({ ...prev, [`moveout-${id}`]: status }));
         try {
           await fetch("/api/requests/moveout/review", {
             method: "POST",
@@ -796,9 +808,16 @@ export default function AdminDashboard({
               admin_name: username
             })
           });
-          fetchAllData();
+          await fetchAllData(true);
         } catch (e) {
           console.error(e);
+        } finally {
+          // Clear tracking
+          setReviewingRequests(prev => {
+            const next = { ...prev };
+            delete next[`moveout-${id}`];
+            return next;
+          });
         }
       }
     );
@@ -902,7 +921,8 @@ export default function AdminDashboard({
             alert(d.error);
           } else {
             triggerSuccess("Notifications Cleared", "Your personal notification logs have been cleared.");
-            await fetchAllData();
+            setNotifications([]);
+            await fetchAllData(true);
           }
         } catch (e) {
           console.error(e);
@@ -915,20 +935,24 @@ export default function AdminDashboard({
 
   // Read notification clearing dot
   const handleReadNotification = (id: number) => {
+    // Optimistic state update: Set target notification as read immediately
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
     fetch("/api/notifications/clear-dot", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ notification_id: id })
-    }).then(() => fetchAllData());
+    }).then(() => fetchAllData(true));
   };
 
   // Dismiss all notifications
   const handleReadAllNotifications = () => {
+    // Optimistic state update: Mark all notifications as read immediately
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     fetch("/api/notifications/read-all", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ recipient_id: userId })
-    }).then(() => fetchAllData());
+    }).then(() => fetchAllData(true));
   };
 
 
@@ -1922,36 +1946,46 @@ export default function AdminDashboard({
               {excuses.length === 0 ? (
                 <p className="text-center text-muted py-4">No excuse applications submitted.</p>
               ) : (
-                excuses.map(ex => (
-                  <div key={ex.id} className="p-3 mb-3 border rounded-3 bg-light-subtle position-relative">
-                    <span className={`position-absolute top-3 end-3 badge ${
-                      ex.status === 'approved' ? 'bg-success' :
-                      ex.status === 'denied' ? 'bg-danger' : 'bg-warning text-dark'
-                    }`}>
-                      {ex.status.toUpperCase()}
-                    </span>
+                excuses.map(ex => {
+                  const currentStatus = reviewingRequests[`excuse-${ex.id}`] || ex.status;
+                  const isReviewing = !!reviewingRequests[`excuse-${ex.id}`];
+                  return (
+                    <div key={ex.id} className="p-3 mb-3 border rounded-3 bg-light-subtle position-relative">
+                      <span className={`position-absolute top-3 end-3 badge ${
+                        currentStatus === 'approved' ? 'bg-success' :
+                        currentStatus === 'denied' ? 'bg-danger' : 'bg-warning text-dark'
+                      }`}>
+                        {currentStatus.toUpperCase()}
+                        {isReviewing && " (SAVING...)"}
+                      </span>
 
-                    <h6 className="fw-bold mb-1 text-dark">
-                      Student: {ex.student_username} ({ex.first_name || 'Incomplete Profile'})
-                    </h6>
-                    <span className="badge bg-secondary mb-2 small">{ex.session_title}</span>
-                    <p className="mb-2 text-dark small bg-white p-2 rounded border">{ex.reason}</p>
-                    
-                    <div className="d-flex justify-content-between align-items-center text-secondary small">
-                      <span>Submitted: {new Date(ex.submitted_at).toLocaleDateString()}</span>
-                      {ex.status === 'pending' && (
-                        <div className="d-flex gap-1">
-                          <button className="btn btn-xs btn-success text-white py-1 px-3 fs-9" onClick={() => handleReviewExcuse(ex.id, 'approved')}>
-                            Approve
-                          </button>
-                          <button className="btn btn-xs btn-danger text-white py-1 px-3 fs-9" onClick={() => handleReviewExcuse(ex.id, 'denied')}>
-                            Deny
-                          </button>
-                        </div>
-                      )}
+                      <h6 className="fw-bold mb-1 text-dark">
+                        Student: {ex.student_username} ({ex.first_name || 'Incomplete Profile'})
+                      </h6>
+                      <span className="badge bg-secondary mb-2 small">{ex.session_title}</span>
+                      <p className="mb-2 text-dark small bg-white p-2 rounded border">{ex.reason}</p>
+                      
+                      <div className="d-flex justify-content-between align-items-center text-secondary small">
+                        <span>Submitted: {new Date(ex.submitted_at).toLocaleDateString()}</span>
+                        {isReviewing ? (
+                          <div className="d-flex align-items-center gap-1 text-indigo-600 font-medium">
+                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" style={{ width: '0.75rem', height: '0.75rem' }}></span>
+                            Processing...
+                          </div>
+                        ) : ex.status === 'pending' && (
+                          <div className="d-flex gap-1">
+                            <button className="btn btn-xs btn-success text-white py-1 px-3 fs-9" onClick={() => handleReviewExcuse(ex.id, 'approved')}>
+                              Approve
+                            </button>
+                            <button className="btn btn-xs btn-danger text-white py-1 px-3 fs-9" onClick={() => handleReviewExcuse(ex.id, 'denied')}>
+                              Deny
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -1964,36 +1998,46 @@ export default function AdminDashboard({
               {moveOuts.length === 0 ? (
                 <p className="text-center text-muted py-4">No move-out applications received.</p>
               ) : (
-                moveOuts.map(mo => (
-                  <div key={mo.id} className="p-3 mb-3 border rounded-3 bg-light-subtle position-relative">
-                    <span className={`position-absolute top-3 end-3 badge ${
-                      mo.status === 'approved' ? 'bg-success' :
-                      mo.status === 'denied' ? 'bg-danger' : 'bg-warning text-dark'
-                    }`}>
-                      {mo.status.toUpperCase()}
-                    </span>
+                moveOuts.map(mo => {
+                  const currentStatus = reviewingRequests[`moveout-${mo.id}`] || mo.status;
+                  const isReviewing = !!reviewingRequests[`moveout-${mo.id}`];
+                  return (
+                    <div key={mo.id} className="p-3 mb-3 border rounded-3 bg-light-subtle position-relative">
+                      <span className={`position-absolute top-3 end-3 badge ${
+                        currentStatus === 'approved' ? 'bg-success' :
+                        currentStatus === 'denied' ? 'bg-danger' : 'bg-warning text-dark'
+                      }`}>
+                        {currentStatus.toUpperCase()}
+                        {isReviewing && " (SAVING...)"}
+                      </span>
 
-                    <h6 className="fw-bold mb-1 text-dark">
-                      Student: {mo.student_username} ({mo.first_name || 'Incomplete Profile'})
-                    </h6>
-                    <p className="small text-secondary mb-2">Requested move out date: {new Date(mo.requested_move_out_date).toLocaleDateString()}</p>
-                    <p className="mb-2 text-dark small bg-white p-2 rounded border">{mo.reason}</p>
-                    
-                    <div className="d-flex justify-content-between align-items-center text-secondary small">
-                      <span>Submitted: {new Date(mo.submitted_at).toLocaleDateString()}</span>
-                      {mo.status === 'pending' && (
-                        <div className="d-flex gap-1">
-                          <button className="btn btn-xs btn-success text-white py-1 px-3 fs-9" onClick={() => handleReviewMoveout(mo.id, mo.student_username || '', 'approved')}>
-                            Approve & Evict
-                          </button>
-                          <button className="btn btn-xs btn-danger text-white py-1 px-3 fs-9" onClick={() => handleReviewMoveout(mo.id, mo.student_username || '', 'denied')}>
-                            Deny
-                          </button>
-                        </div>
-                      )}
+                      <h6 className="fw-bold mb-1 text-dark">
+                        Student: {mo.student_username} ({mo.first_name || 'Incomplete Profile'})
+                      </h6>
+                      <p className="small text-secondary mb-2">Requested move out date: {new Date(mo.requested_move_out_date).toLocaleDateString()}</p>
+                      <p className="mb-2 text-dark small bg-white p-2 rounded border">{mo.reason}</p>
+                      
+                      <div className="d-flex justify-content-between align-items-center text-secondary small">
+                        <span>Submitted: {new Date(mo.submitted_at).toLocaleDateString()}</span>
+                        {isReviewing ? (
+                          <div className="d-flex align-items-center gap-1 text-indigo-600 font-medium">
+                            <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" style={{ width: '0.75rem', height: '0.75rem' }}></span>
+                            Processing...
+                          </div>
+                        ) : mo.status === 'pending' && (
+                          <div className="d-flex gap-1">
+                            <button className="btn btn-xs btn-success text-white py-1 px-3 fs-9" onClick={() => handleReviewMoveout(mo.id, mo.student_username || '', 'approved')}>
+                              Approve & Evict
+                            </button>
+                            <button className="btn btn-xs btn-danger text-white py-1 px-3 fs-9" onClick={() => handleReviewMoveout(mo.id, mo.student_username || '', 'denied')}>
+                              Deny
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

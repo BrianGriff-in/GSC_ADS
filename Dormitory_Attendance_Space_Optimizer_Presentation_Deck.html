@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dormitory Attendance & Space Optimizer (DASO) - Presentation Deck</title>
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-outfit {
+      font-family: 'Outfit', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', sans-serif;
+    }
+    .slide {
+      transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .slide-hidden {
+      opacity: 0;
+      transform: scale(0.98);
+      pointer-events: none;
+      position: absolute;
+    }
+    .slide-active {
+      opacity: 1;
+      transform: scale(1);
+      position: relative;
+    }
+    /* Simple custom scrollbar for presentation notes */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+  </style>
+</head>
+<body class="bg-[#0b0f19] text-slate-100 flex flex-col justify-between min-h-screen overflow-hidden select-none">
+
+  <!-- Header Section -->
+  <header class="p-6 flex justify-between items-center border-b border-slate-800/60 bg-[#0d1321] z-10">
+    <div class="flex items-center space-x-3">
+      <div class="p-2 bg-indigo-600 rounded-lg text-white font-bold font-outfit text-sm tracking-widest shadow-lg shadow-indigo-600/20">DASO</div>
+      <span class="text-xs font-mono text-slate-400 tracking-wider">PROJECT PRESENTATION DECK</span>
+    </div>
+    <div class="flex items-center space-x-4">
+      <span class="text-xs text-slate-400" id="slide-index">Slide 1 / 8</span>
+      <button onclick="toggleFullscreen()" class="text-slate-400 hover:text-white transition-colors text-xs border border-slate-800 hover:border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-1">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4" /></svg>
+        Fullscreen
+      </button>
+      <button onclick="window.print()" class="text-slate-400 hover:text-white transition-colors text-xs bg-indigo-900/40 hover:bg-indigo-900/60 border border-indigo-500/30 px-3 py-1.5 rounded-lg flex items-center gap-1">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+        Export PDF / Print
+      </button>
+    </div>
+  </header>
+
+  <!-- Slide Frame Workspace -->
+  <main class="flex-grow flex items-center justify-center p-8 relative">
+
+    <!-- SLIDE 1: Title Slide (Dark Cover) -->
+    <div class="slide slide-active w-full max-w-5xl bg-[#0d1321] border border-slate-800/80 rounded-2xl shadow-2xl p-12 md:p-16 flex flex-col justify-between min-h-[500px]" id="slide-1">
+      <div>
+        <span class="text-indigo-400 font-mono text-sm tracking-widest font-semibold uppercase bg-indigo-500/10 px-3 py-1 rounded-full">Executive Pitch</span>
+        <h1 class="text-4xl md:text-5xl font-extrabold font-outfit mt-6 mb-4 tracking-tight leading-tight text-white bg-gradient-to-r from-white via-slate-100 to-indigo-200 bg-clip-text text-transparent">
+          Dormitory Attendance &<br>Space Optimizer System
+        </h1>
+        <p class="text-slate-400 text-lg max-w-2xl leading-relaxed">
+          An advanced administrative control suite designed to automate residential management, coordinate daily check-ins, eliminate allocation errors, and optimize occupancy.
+        </p>
+      </div>
+      <div class="border-t border-slate-800/80 pt-8 flex justify-between items-center mt-12">
+        <div>
+          <p class="text-xs text-slate-500 uppercase tracking-widest font-mono font-medium">Prepared For</p>
+          <p class="text-slate-200 font-semibold mt-1">Institutional Clients & Property Directors</p>
+        </div>
+        <div class="text-right">
+          <p class="text-xs text-slate-500 uppercase tracking-widest font-mono font-medium">System Version</p>
+          <p class="text-indigo-400 font-semibold font-mono mt-1">v1.2.0 (Production Stable)</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: Vision & Operational Pain Points -->
+    <div class="slide slide-hidden w-full max-w-5xl bg-[#0d1321] border border-slate-800/80 rounded-2xl shadow-2xl p-12 md:p-16 flex flex-col justify-between min-h-[500px]" id="slide-2">
+      <div>
+        <span class="text-indigo-400 font-mono text-sm tracking-widest font-semibold uppercase bg-indigo-500/10 px-3 py-1 rounded-full">Core Problem & Vision</span>
+        <h2 class="text-3xl font-bold font-outfit mt-6 mb-8 text-white">Simplifying Complex Dormitory Logistics</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="bg-[#121a2e] rounded-xl p-6 border border-slate-800">
+            <h3 class="font-semibold text-rose-400 mb-3 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              The Traditional Bottlenecks
+            </h3>
+            <ul class="space-y-3 text-sm text-slate-300">
+              <li class="flex items-start gap-2">
+                <span class="text-rose-500 text-base">•</span>
+                <span><strong>Manual Paper Gate Checks</strong>: High risk of falsification, error, or slow archival processing.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-rose-500 text-base">•</span>
+                <span><strong>Accidental Gender-Mismatching</strong>: Risks breaching space policy by assigning incorrect genders.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-rose-500 text-base">•</span>
+                <span><strong>Accidental Clicks & Loss</strong>: Discarding or committing changes mistakenly without a roll-back.</span>
+              </li>
+            </ul>
+          </div>
+          <div class="bg-[#121a2e] rounded-xl p-6 border border-indigo-900/60 shadow-lg shadow-indigo-500/5">
+            <h3 class="font-semibold text-emerald-400 mb-3 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              The DASO Solution
+            </h3>
+            <ul class="space-y-3 text-sm text-slate-300">
+              <li class="flex items-start gap-2">
+                <span class="text-emerald-500 text-base">•</span>
+                <span><strong>Real-time Gate Check</strong>: Centralized, synchronized roster with offline staging cache.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-emerald-500 text-base">•</span>
+                <span><strong>Autonomous Diagnostics</strong>: Automatically handles gender validation, sorting, and capacity rules.</span>
+              </li>
+              <li class="flex items-start gap-2">
+                <span class="text-emerald-500 text-base">•</span>
+                <span><strong>Transactional Safeguards</strong>: Secure, layered verification modals that protect state.</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-slate-800/50 flex justify-between items-center text-xs text-slate-500 font-mono">
+        <span>DASO OVERVIEW</span>
+        <span>SLIDE 2 / 8</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: Module 1 - Attendance Control Tower -->
+    <div class="slide slide-hidden w-full max-w-5xl bg-[#0d1321] border border-slate-800/80 rounded-2xl shadow-2xl p-12 md:p-16 flex flex-col justify-between min-h-[500px]" id="slide-3">
+      <div>
+        <span class="text-indigo-400 font-mono text-sm tracking-widest font-semibold uppercase bg-indigo-500/10 px-3 py-1 rounded-full">Module Highlights</span>
+        <h2 class="text-3xl font-bold font-outfit mt-6 mb-4 text-white">01. Live Gate Check & Attendance Module</h2>
+        <p class="text-slate-400 text-sm mb-8 leading-relaxed">
+          The hub which allows administrative officers to track dormitory gate checks under strict safety parameters.
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="bg-[#121a2e] rounded-xl p-5 border border-slate-800">
+            <div class="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-400 font-bold text-sm mb-4">A</div>
+            <h4 class="font-semibold text-slate-200 mb-2">Staged Draft Marks</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">Draft changes are stored locally, avoiding unnecessary, high-latency database micro-calls during rapid-fire attendance changes.</p>
+          </div>
+          <div class="bg-[#121a2e] rounded-xl p-5 border border-slate-800">
+            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 font-bold text-sm mb-4 font-mono">B</div>
+            <h4 class="font-semibold text-slate-200 mb-2">Central Attendance Summary</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">A specialized review slip renders custom color badges detailing student name, original mark, target status, and instant undo options.</p>
+          </div>
+          <div class="bg-[#121a2e] rounded-xl p-5 border border-indigo-900/60 shadow-lg shadow-indigo-500/5">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 font-bold text-sm mb-4 font-mono">C</div>
+            <h4 class="font-semibold text-slate-200 mb-2">Atomic Batch Commits</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">Commit and archive a large draft batch of student marks directly inside the database in a single REST payload.</p>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-slate-800/50 flex justify-between items-center text-xs text-slate-500 font-mono">
+        <span>ATTENDANCE CORE</span>
+        <span>SLIDE 3 / 8</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: Module 2 - Space Optimizer & Room Allocation -->
+    <div class="slide slide-hidden w-full max-w-5xl bg-[#0d1321] border border-slate-800/80 rounded-2xl shadow-2xl p-12 md:p-16 flex flex-col justify-between min-h-[500px]" id="slide-4">
+      <div>
+        <span class="text-indigo-400 font-mono text-sm tracking-widest font-semibold uppercase bg-indigo-500/10 px-3 py-1 rounded-full">Module Highlights</span>
+        <h2 class="text-3xl font-bold font-outfit mt-6 mb-4 text-white">02. Intelligent Space Allocation</h2>
+        <p class="text-slate-400 text-sm mb-8 leading-relaxed">
+          Allows administrative staff to assign and re-allocate residential units instantly without operational friction.
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="bg-[#121a2e] rounded-xl p-6 border border-slate-800">
+            <h3 class="font-semibold text-indigo-400 mb-3 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+              Auto-Pre-filled Sorting Parameters
+            </h3>
+            <p class="text-sm text-slate-300 mb-4 leading-relaxed">
+              When assigning a room unit for a student (e.g. <em>BF001 - Male</em>), the optimizer identifies their registered sex and pre-filters list recommendations safely.
+            </p>
+            <div class="text-xs font-mono bg-slate-900/40 p-3 rounded border border-slate-800 text-slate-400 flex justify-between">
+              <span>Selected Sex: 👦 MALE</span>
+              <span class="text-indigo-400">⚡ Auto-Selected: Male Room List</span>
+            </div>
+          </div>
+          <div class="bg-[#121a2e] rounded-xl p-6 border border-slate-800">
+            <h3 class="font-semibold text-indigo-400 mb-3 flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 114 0v2m-4 0h4m-4 0H5m12 0h3" /></svg>
+              Interactive Gender Tabs Selector
+            </h3>
+            <p class="text-sm text-slate-300 mb-4 leading-relaxed">
+              Admins retain total override capabilities. They can select:
+            </p>
+            <div class="grid grid-cols-3 gap-2 text-center text-xs font-semibold">
+              <div class="bg-indigo-600 text-white rounded py-2 border border-indigo-500 shadow-sm">🌐 All Rooms</div>
+              <div class="bg-slate-800 text-slate-300 rounded py-2 border border-slate-700">👦 Male</div>
+              <div class="bg-slate-800 text-slate-300 rounded py-2 border border-slate-700">👧 Female</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-slate-800/50 flex justify-between items-center text-xs text-slate-500 font-mono">
+        <span>SPACE OPTIMIZER</span>
+        <span>SLIDE 4 / 8</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: Module 3 - Built-in Safety Confirmations -->
+    <div class="slide slide-hidden w-full max-w-5xl bg-[#0d1321] border border-slate-800/80 rounded-2xl shadow-2xl p-12 md:p-16 flex flex-col justify-between min-h-[500px]" id="slide-5">
+      <div>
+        <span class="text-indigo-400 font-mono text-sm tracking-widest font-semibold uppercase bg-indigo-500/10 px-3 py-1 rounded-full">Safety Architecture</span>
+        <h2 class="text-3xl font-bold font-outfit mt-6 mb-4 text-white">03. High-Priority Safety Overlay System</h2>
+        <p class="text-slate-400 text-sm mb-8 leading-relaxed">
+          Critical operations inside a busy dormitory dashboard need foolproof controls. We designed a layered pop-up structure to prevent accidental triggers.
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="bg-[#121a2e] rounded-xl p-6 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <h3 class="font-semibold text-amber-400 mb-2 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m0-6v2m0-8H7.294C5.697 3 4.4 4.302 4.4 5.922v12.156C4.4 19.698 5.697 21 7.294 21h9.412c1.597 0 2.894-1.302 2.894-2.922V5.922C19.6 4.302 18.303 3 16.706 3H12z" /></svg>
+                Confirmation Z-Index Prioritization
+              </h3>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                We re-layered visual hierarchies to push modal overlays dynamically into the absolute front of standard administrative modal wrappers.
+              </p>
+            </div>
+            <div class="mt-4 pt-4 border-t border-slate-800/60 font-mono text-xs text-slate-500 space-y-1">
+              <div class="flex justify-between"><span>Base Admin Modals:</span> <span class="text-slate-400">z-index: 1050 ~ 1100</span></div>
+              <div class="flex justify-between text-indigo-400"><span>Confirmation Modals:</span> <span>z-index: 1500 (Priority)</span></div>
+              <div class="flex justify-between text-emerald-400"><span>Success Alert Modal:</span> <span>z-index: 1600 (Top Peak)</span></div>
+            </div>
+          </div>
+          <div class="bg-[#121a2e] rounded-xl p-6 border border-slate-800 flex flex-col justify-between">
+            <div>
+              <h3 class="font-semibold text-indigo-400 mb-2 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Double-Action Guards
+              </h3>
+              <p class="text-xs text-slate-400 leading-relaxed">
+                Whenever an administrator clicks on critical actions like discarding multi-student drafting lists, the system captures actions, computes list impact lengths, and shows confirmation metrics.
+              </p>
+            </div>
+            <div class="mt-4 pt-3 flex gap-2">
+              <span class="text-[10px] font-mono bg-rose-500/10 text-rose-400 px-2 py-1 rounded border border-rose-500/20">Prevents Draft Loss</span>
+              <span class="text-[10px] font-mono bg-amber-500/10 text-amber-400 px-2 py-1 rounded border border-amber-500/20">In-Front Click Target</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-slate-800/50 flex justify-between items-center text-xs text-slate-500 font-mono">
+        <span>SAFETY SAFEGUARDS</span>
+        <span>SLIDE 5 / 8</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: Dynamic Architecture -->
+    <div class="slide slide-hidden w-full max-w-5xl bg-[#0d1321] border border-slate-800/80 rounded-2xl shadow-2xl p-12 md:p-16 flex flex-col justify-between min-h-[500px]" id="slide-6">
+      <div>
+        <span class="text-indigo-400 font-mono text-sm tracking-widest font-semibold uppercase bg-indigo-500/10 px-3 py-1 rounded-full">System Architecture</span>
+        <h2 class="text-3xl font-bold font-outfit mt-6 mb-8 text-white">Advanced Full-Stack Engineering Blueprint</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div class="bg-indigo-950/20 border border-slate-800 p-5 rounded-xl">
+            <h4 class="font-semibold text-slate-200 text-sm mb-2">Vite + React SPA</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">Lightning-fast hot module updates, type-safe execution, and ultra-lightweight client footprints.</p>
+          </div>
+          <div class="bg-indigo-950/20 border border-slate-800 p-5 rounded-xl">
+            <h4 class="font-semibold text-slate-200 text-sm mb-2">Express REST Hub</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">Secure server-side API proxy routing under `/api/admins` keeps credentials confidential.</p>
+          </div>
+          <div class="bg-indigo-950/20 border border-slate-800 p-5 rounded-xl">
+            <h4 class="font-semibold text-slate-200 text-sm mb-2">Drizzle & Firestore</h4>
+            <p class="text-xs text-slate-400 leading-relaxed">Rapid cloud persistence pipelines guaranteeing that student, allocation, and gate check records survive reboots.</p>
+          </div>
+          <div class="bg-indigo-950/20 border border-slate-800 p-5 rounded-xl text-indigo-400">
+            <h4 class="font-semibold text-sm mb-2">CJS Production Bundle</h4>
+            <p class="text-xs text-slate-300 leading-relaxed">Compiled utilizing modern bundlers for high-speed container boot-times and zero dependency mismatches.</p>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-slate-800/50 flex justify-between items-center text-xs text-slate-500 font-mono">
+        <span>STACK METRICS</span>
+        <span>SLIDE 6 / 8</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: Client Value Proposition -->
+    <div class="slide slide-hidden w-full max-w-5xl bg-[#0d1321] border border-slate-800/80 rounded-2xl shadow-2xl p-12 md:p-16 flex flex-col justify-between min-h-[500px]" id="slide-7">
+      <div>
+        <span class="text-indigo-400 font-mono text-sm tracking-widest font-semibold uppercase bg-indigo-500/10 px-3 py-1 rounded-full">Value Proposition</span>
+        <h2 class="text-3xl font-bold font-outfit mt-6 mb-8 text-white">Client-Facing Advantages of DASO</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="border border-slate-800 p-6 rounded-xl bg-slate-900/40">
+            <div class="text-indigo-400 text-3xl font-bold font-outfit mb-2">80%</div>
+            <h4 class="font-semibold text-slate-200 mb-1">Time Saved</h4>
+            <p class="text-xs text-slate-400">Reduction in manual registration overheads, automatic filtering, and batch check submissions.</p>
+          </div>
+          <div class="border border-slate-800 p-6 rounded-xl bg-slate-900/40">
+            <div class="text-indigo-400 text-3xl font-bold font-outfit mb-2">0%</div>
+            <h4 class="font-semibold text-slate-200 mb-1">Mismatch Rate</h4>
+            <p class="text-xs text-slate-400">Elimination of gender configuration mismatches inside restricted residential spaces through intelligent warnings.</p>
+          </div>
+          <div class="border border-slate-800 p-6 rounded-xl bg-slate-900/40">
+            <div class="text-indigo-400 text-3xl font-bold font-outfit mb-2">100%</div>
+            <h4 class="font-semibold text-slate-200 mb-1">Staff Confidence</h4>
+            <p class="text-xs text-slate-400">Layered modal overlays protect administrators from accidentally losing critical drafts or triggering false audits.</p>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-slate-800/50 flex justify-between items-center text-xs text-slate-500 font-mono">
+        <span>BUSINESS HIGHLIGHTS</span>
+        <span>SLIDE 7 / 8</span>
+      </div>
+    </div>
+
+    <!-- SLIDE 8: Summary & Presentation Mode -->
+    <div class="slide slide-hidden w-full max-w-5xl bg-[#0d1321] border border-slate-800/80 rounded-2xl shadow-2xl p-12 md:p-16 flex flex-col justify-between min-h-[500px]" id="slide-8">
+      <div>
+        <span class="text-indigo-400 font-mono text-sm tracking-widest font-semibold uppercase bg-indigo-500/10 px-3 py-1 rounded-full font-bold">Summary</span>
+        <h2 class="text-3xl font-extrabold font-outfit mt-6 mb-4 text-white">Ready for Integration</h2>
+        <p class="text-slate-400 text-sm max-w-2xl leading-relaxed mb-6">
+          Active, compiled, polished, and ready to show to your client immediately. Secure your administrative workflow today.
+        </p>
+        <div class="inline-flex flex-col space-y-2 bg-indigo-950/40 p-5 rounded-xl border border-indigo-500/20 max-w-xl">
+          <p class="text-xs text-indigo-300 font-semibold uppercase tracking-wider flex items-center gap-1.5 font-mono">
+            ⚡ Quick Tip for Client Presentation:
+          </p>
+          <ul class="text-xs text-slate-300 space-y-2 font-mono">
+            <li>1. Hit <span class="bg-indigo-900 px-1 rounded text-white font-bold font-sans">Ctrl + P</span> or <span class="bg-indigo-900 px-1 rounded text-white font-bold font-sans">Cmd + P</span> instantly to export details to PDF.</li>
+            <li>2. Highlight the <strong>Interactive Assign Sex Filtering tabs</strong> to demonstrate ease of use.</li>
+            <li>3. Show the <strong>Layered Pop-ups</strong> to prove your emphasis on safety and data integrity!</li>
+          </ul>
+        </div>
+      </div>
+      <div class="mt-4 pt-4 border-t border-slate-800/50 flex justify-between items-center text-xs text-slate-500 font-mono">
+        <span>SUMMARY</span>
+        <span>SLIDE 8 / 8</span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Navigation Footer Tray -->
+  <footer class="p-6 border-t border-slate-800/60 bg-[#0d1321] z-10 flex flex-col sm:flex-row justify-between items-center gap-4">
+    <div class="text-xs text-slate-500 font-mono">Press <kbd class="bg-[#121a2e] border border-slate-700 px-1.5 py-0.5 rounded text-indigo-400">←</kbd> or <kbd class="bg-[#121a2e] border border-slate-700 px-1.5 py-0.5 rounded text-indigo-400">→</kbd> to navigate slides</div>
+    <div class="flex space-x-3 items-center">
+      <button onclick="prevSlide()" class="bg-[#121a2e] hover:bg-slate-800 border border-slate-800 text-slate-300 font-semibold py-2 px-4 rounded-xl text-xs transition-colors flex items-center gap-1">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+        Previous
+      </button>
+      <button onclick="nextSlide()" class="bg-indigo-600 hover:bg-indigo-500 border border-indigo-700 text-white font-semibold py-2 px-4 rounded-xl text-xs transition-colors flex items-center gap-1">
+        Next
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+      </button>
+    </div>
+  </footer>
+
+  <!-- Slide Logic Manager Controller -->
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 8;
+
+    function updateSlides() {
+      for (let i = 1; i <= totalSlides; i++) {
+        const slide = document.getElementById(`slide-${i}`);
+        if (i === currentSlide) {
+          slide.classList.remove('slide-hidden');
+          slide.classList.add('slide-active');
+        } else {
+          slide.classList.add('slide-hidden');
+          slide.classList.remove('slide-active');
+        }
+      }
+      document.getElementById('slide-index').innerText = `Slide ${currentSlide} / ${totalSlides}`;
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) {
+        currentSlide--;
+        updateSlides();
+      }
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) {
+        currentSlide++;
+        updateSlides();
+      }
+    }
+
+    // Keyboard Controllers
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') {
+        prevSlide();
+      } else if (e.key === 'ArrowRight' || e.key === ' ') {
+        nextSlide();
+      }
+    });
+
+    // Simple Fullscreen toggle
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          console.error(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    }
+  </script>
+</body>
+</html>
