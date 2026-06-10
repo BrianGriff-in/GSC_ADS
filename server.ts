@@ -124,6 +124,8 @@ async function initDB() {
     pgPool = new pg.Pool({
       connectionString: dbUrl,
       connectionTimeoutMillis: 5000, // Fail fast if blocked by network/firewall
+      max: 20,                       // Keep hot connections open inside the pool
+      idleTimeoutMillis: 30000,      // Allow hot connections to live for up to 30 seconds
     });
     
     // Testing connection

@@ -210,7 +210,7 @@ export default function AdminDashboard({
 
   useEffect(() => {
     fetchAllData();
-  }, [activeTab]);
+  }, []);
 
   useEffect(() => {
     const eventSource = new EventSource(`/api/live-sync?userId=${userId}&role=admin`);

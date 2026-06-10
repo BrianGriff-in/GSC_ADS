@@ -104,7 +104,7 @@ export default function StudentDashboard({
 
   useEffect(() => {
     fetchStudentData();
-  }, [activeSubTab]);
+  }, []);
 
   useEffect(() => {
     const eventSource = new EventSource(`/api/live-sync?userId=${userId}&role=student`);
