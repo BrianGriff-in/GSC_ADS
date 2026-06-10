@@ -103,69 +103,55 @@ export default function AdminDashboard({
   const fetchAllData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const dbRes = await fetch("/api/system/db-status");
-      const dbData = await dbRes.json();
+      const [
+        dbRes,
+        studentRes,
+        roomRes,
+        activeRes,
+        reqRes,
+        historyRes,
+        notifRes,
+        absenceRes
+      ] = await Promise.all([
+        fetch("/api/system/db-status"),
+        fetch("/api/admins/students"),
+        fetch("/api/admins/rooms"),
+        fetch("/api/admins/sessions/active"),
+        fetch("/api/requests/all"),
+        fetch("/api/admins/sessions/history"),
+        fetch(`/api/notifications/${userId}`),
+        fetch("/api/admins/students/absences")
+      ]);
+
+      const [
+        dbData,
+        studentData,
+        roomData,
+        activeData,
+        reqData,
+        historyData,
+        notifData,
+        absenceData
+      ] = await Promise.all([
+        dbRes.json(),
+        studentRes.json(),
+        roomRes.json(),
+        activeRes.json(),
+        reqRes.json(),
+        historyRes.json(),
+        notifRes.json(),
+        absenceRes.json()
+      ]);
+
       setDbMode(dbData.mode);
-
-      // Fetch students with assignments
-      const studentRes = await fetch("/api/admins/students");
-      const studentData = await studentRes.json();
       setStudents(studentData);
-
-      // Fetch rooms
-      const roomRes = await fetch("/api/admins/rooms");
-      const roomData = await roomRes.json();
       setRooms(roomData);
-
-      // Fetch active session if any
-      const activeRes = await fetch("/api/admins/sessions/active");
-      const activeData = await activeRes.json();
       setActiveSession(activeData);
-
-      // Fetch excuses & moveout applications
-      const reqRes = await fetch("/api/requests/all");
-      const reqData = await reqRes.json();
       setExcuses(reqData.excuses || []);
       setMoveOuts(reqData.moveOuts || []);
-
-      // Fetch history sessions
-      const historyRes = await fetch("/api/admins/sessions/history");
-      const historyData = await historyRes.json();
       setHistorySessions(historyData);
-
-      // Fetch system notifications for admins
-      const notifRes = await fetch(`/api/notifications/${userId}`);
-      const notifData = await notifRes.json();
       setNotifications(notifData);
-
-      // Compute student dynamic absences count for Red Alerts
-      // Spot students with absent count >= 3 in the year
-      const absenceCountMap: Record<number, number> = {};
-      
-      // Calculate from all historical sessions
-      const allHistoricAtts: Attendance[] = [];
-      for (const h of historyData) {
-        // Fetch each session details dynamically or map from mock
-        // Since we aggregate status counts on back, let's fetch individual logs from mock storage
-        // A simple GET `/api/students/attendance/:id` can be used to scan total absences.
-        // We can aggregate absences directly from all the historical sessions retrieved inside our DB fallback
-        // Fallback lets us count absences of all non-deleted students
-      }
-      
-      // For fallback/PG robust coverage, let's trigger a calculation scan for each student's attendance stats
-      const dynamicCountMap: Record<number, number> = {};
-      for (const stud of studentData) {
-        const attLogsRes = await fetch(`/api/students/attendance/${stud.id}`);
-        const attLogs = await attLogsRes.json();
-        const absencesThisYear = attLogs.filter((a: any) => {
-          if (a.status !== 'absent') return false;
-          // Filter out current year
-          const d = a.started_at ? new Date(a.started_at) : new Date();
-          return d.getFullYear() === new Date().getFullYear();
-        }).length;
-        dynamicCountMap[stud.id] = absencesThisYear;
-      }
-      setStudentsAbsenceHistory(dynamicCountMap);
+      setStudentsAbsenceHistory(absenceData);
 
     } catch (e) {
       console.error("Error loaded data inside admin console", e);
@@ -618,6 +604,7 @@ export default function AdminDashboard({
       "Initialize Attendance Session",
       `Open monthly session '${sessionTitleInput}'? All active dormitory students will be snapshotted as absent in this session.`,
       async () => {
+        setSubmitting(true);
         try {
           const res = await fetch("/api/admins/sessions/create", {
             method: "POST",
@@ -637,10 +624,12 @@ export default function AdminDashboard({
               `The active attendance tracking meeting "${d.title || sessionTitleInput}" is now running live.\n\nDormitory roommates have been snapshotted automatically. Gatekeepers can now begin marking on-time vs late logs.`
             );
             setSessionTitleInput('');
-            fetchAllData();
+            await fetchAllData();
           }
         } catch (e) {
           console.error(e);
+        } finally {
+          setSubmitting(false);
         }
       }
     );
@@ -705,6 +694,7 @@ export default function AdminDashboard({
       "End Meeting Session",
       `Are you absolutely sure you want to end session '${title}'? All remaining absent students will receive a warning notice and final statistics saved.`,
       async () => {
+        setSubmitting(true);
         try {
           await fetch("/api/admins/sessions/end", {
             method: "POST",
@@ -715,9 +705,11 @@ export default function AdminDashboard({
               admin_name: username
             })
           });
-          fetchAllData();
+          await fetchAllData();
         } catch (e) {
           console.error(e);
+        } finally {
+          setSubmitting(false);
         }
       }
     );
@@ -791,6 +783,93 @@ export default function AdminDashboard({
           fetchAllData();
         } catch (e) {
           console.error(e);
+        }
+      }
+    );
+  };
+
+  // Clear all late/absent excuse request logs
+  const handleClearAllLateAbsent = () => {
+    triggerConfirm(
+      "Clear All Excuses",
+      "Are you sure you want to permanently delete ALL late and absent excuse submission records from the system database? This action cannot be undone.",
+      async () => {
+        setSubmitting(true);
+        try {
+          const res = await fetch("/api/admins/requests/clear-late-absent", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ admin_id: userId, admin_name: username })
+          });
+          const d = await res.json();
+          if (d.error) {
+            alert(d.error);
+          } else {
+            triggerSuccess("Excuses Purged", "All historical excuse submission data was completely cleared from the system.");
+            await fetchAllData();
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setSubmitting(false);
+        }
+      }
+    );
+  };
+
+  // Clear all student move-out applications
+  const handleClearAllMoveouts = () => {
+    triggerConfirm(
+      "Clear All Move-Out Notices",
+      "Are you sure you want to permanently delete ALL student move-out notification logs from the system database? This action cannot be undone.",
+      async () => {
+        setSubmitting(true);
+        try {
+          const res = await fetch("/api/admins/requests/clear-moveouts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ admin_id: userId, admin_name: username })
+          });
+          const d = await res.json();
+          if (d.error) {
+            alert(d.error);
+          } else {
+            triggerSuccess("Moveouts Purged", "All move-out request and notification logs were completely cleared.");
+            await fetchAllData();
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setSubmitting(false);
+        }
+      }
+    );
+  };
+
+  // Clear all recipient notifications
+  const handleClearAllNotifications = () => {
+    triggerConfirm(
+      "Clear Your Notifications",
+      "Are you sure you want to clear all your current notifications? This will clear your personal alert logs.",
+      async () => {
+        setSubmitting(true);
+        try {
+          const res = await fetch("/api/notifications/clear-user-notifications", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recipient_id: userId })
+          });
+          const d = await res.json();
+          if (d.error) {
+            alert(d.error);
+          } else {
+            triggerSuccess("Notifications Cleared", "Your personal notification logs have been cleared.");
+            await fetchAllData();
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setSubmitting(false);
         }
       }
     );
@@ -913,11 +992,18 @@ export default function AdminDashboard({
             <ul className="dropdown-menu dropdown-menu-end p-3 border-slate-200" style={{ width: '320px' }}>
               <div className="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
                 <span className="fw-semibold text-dark text-uppercase tracking-wider small">System Alerts</span>
-                {unreadNotifs.length > 0 && (
-                  <button className="btn btn-xs btn-link text-primary p-0 h-auto" onClick={handleReadAllNotifications}>
-                    Read All
-                  </button>
-                )}
+                <div className="d-flex gap-2">
+                  {unreadNotifs.length > 0 && (
+                    <button className="btn btn-xs btn-link text-primary p-0 h-auto text-decoration-none fw-medium" onClick={handleReadAllNotifications}>
+                      ✓ Read All
+                    </button>
+                  )}
+                  {notifications.length > 0 && (
+                    <button className="btn btn-xs btn-link text-danger p-0 h-auto text-decoration-none fw-medium ms-1" onClick={handleClearAllNotifications} id="clear-all-alerts-btn">
+                      🗑️ Clear
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="overflow-auto" style={{ maxHeight: '250px' }}>
                 {notifications.length === 0 ? (
@@ -1468,6 +1554,46 @@ export default function AdminDashboard({
                             <td>{viewingStudent.phone_number || '-'}</td>
                           </tr>
                           <tr>
+                            <td className="fw-bold bg-light">Social Media</td>
+                            <td>
+                              <div className="d-flex align-items-center gap-3 py-1">
+                                {viewingStudent.facebook ? (
+                                  <a 
+                                    href={viewingStudent.facebook} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="btn btn-primary d-inline-flex align-items-center justify-content-center rounded-circle shadow-sm" 
+                                    style={{ width: '42px', height: '42px', padding: 0 }}
+                                    title="Facebook Account"
+                                    id="visit-facebook-btn"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                                      <path d="M16 8.049c0-4.446-3.582-8.05-8-8.05C3.58 0-.002 3.603-.002 8.05c0 4.017 2.926 7.347 6.75 7.951v-5.625h-2.03V8.05H6.75V6.275c0-2.017 1.195-3.131 3.022-3.131.876 0 1.791.157 1.791.157v1.98h-1.009c-.993 0-1.303.621-1.303 1.258v1.51h2.218l-.354 2.326H9.25V16c3.824-.604 6.75-3.934 6.75-7.951z"/>
+                                    </svg>
+                                  </a>
+                                ) : null}
+                                {viewingStudent.telegram ? (
+                                  <a 
+                                    href={viewingStudent.telegram} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer" 
+                                    className="btn btn-info text-white d-inline-flex align-items-center justify-content-center rounded-circle shadow-sm" 
+                                    style={{ width: '42px', height: '42px', padding: 0, backgroundColor: '#26A5E4', border: 'none' }}
+                                    title="Telegram Account"
+                                    id="visit-telegram-btn"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
+                                      <path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zM8.287 5.906c-.778.324-2.334.994-4.666 2.01-.378.15-.577.298-.595.442-.03.243.275.339.69.47l.175.055c.408.133.958.288 1.243.294.26.006.549-.1.868-.32 2.179-1.471 3.304-2.214 3.374-2.23.05-.012.12-.026.166.016.047.041.042.12.037.141-.03.137-1.283 1.302-1.933 1.907-.203.189-.34.316-.363.34-.052.052-.107.101-.159.149-.393.364-.678.629-.12 1.012.269.184.484.339.697.478.23.15.447.291.7.275.147-.01.299-.15.379-.57l.802-4.246c.125-.662.012-.867-.148-.888-.16-.021-.397.073-1.077.361z"/>
+                                    </svg>
+                                  </a>
+                                ) : null}
+                                {!viewingStudent.facebook && !viewingStudent.telegram && (
+                                  <span className="text-muted">-</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                          <tr>
                             <td className="fw-bold bg-light">Room Unit</td>
                             <td>{viewingStudent.room_label || 'Unassigned'}</td>
                           </tr>
@@ -1645,9 +1771,15 @@ export default function AdminDashboard({
       {/* 4. APPLICATIONS ENGAGEMENT (EXCUSES AND MOVEOUTS) */}
       {activeTab === 'requests' && (
         <div className="row g-4">
-          <div className="col-12 text-end">
-            <button className="btn btn-outline-danger btn-sm rounded-3 fw-bold" onClick={handlePruneMoveouts}>
+          <div className="col-12 d-flex flex-wrap gap-2 justify-content-end">
+            <button className="btn btn-outline-danger btn-sm rounded-3 fw-bold" onClick={handlePruneMoveouts} id="btn-prune-moveouts">
               🧹 Prune old resolved Move-outs (&gt; 1 month)
+            </button>
+            <button className="btn btn-danger btn-sm rounded-3 fw-bold text-white d-inline-flex align-items-center gap-1" onClick={handleClearAllLateAbsent} id="btn-purge-excuses">
+              💥 Purge All Excuse Requests
+            </button>
+            <button className="btn btn-danger btn-sm rounded-3 fw-bold text-white d-inline-flex align-items-center gap-1" onClick={handleClearAllMoveouts} id="btn-purge-moveouts">
+              💥 Purge All Move-Out Notices
             </button>
           </div>
 

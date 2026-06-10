@@ -153,6 +153,8 @@ async function initDB() {
         phone_number VARCHAR(100) DEFAULT '',
         sex VARCHAR(20) NOT NULL,
         profile_photo TEXT,
+        facebook TEXT,
+        telegram TEXT,
         move_in_date TIMESTAMPTZ DEFAULT NOW(),
         is_archived BOOLEAN DEFAULT FALSE,
         archived_at TIMESTAMPTZ
@@ -243,6 +245,12 @@ async function initDB() {
         performed_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+
+    // Ensure columns for facebook and telegram exist
+    await client.query(`
+      ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS facebook TEXT;
+      ALTER TABLE student_profiles ADD COLUMN IF NOT EXISTS telegram TEXT;
+    `);
     
     // Check if initial superadmin exists, else seed
     const resAdmin = await client.query("SELECT * FROM users WHERE username = 'superadmin'");
@@ -317,8 +325,8 @@ function resetLocalData() {
       { id: 4, username: "BF001", password: "student123", role: "student", is_active: true, created_at: new Date().toISOString() }
     ],
     student_profiles: [
-      { id: 1, user_id: 3, first_name: "Sokha", last_name: "Meas", date_of_birth: "2004-05-12", place_of_birth: "Phnom Penh", university_name: "RUPP University", email: "sokha@gmail.com", phone_number: "012345678", sex: "female", profile_photo: null, move_in_date: new Date().toISOString(), is_archived: false, archived_at: null },
-      { id: 2, user_id: 4, first_name: "Dara", last_name: "Sok", date_of_birth: "2003-08-22", place_of_birth: "Kandal", university_name: "ITC University", email: "dara@gmail.com", phone_number: "098765432", sex: "male", profile_photo: null, move_in_date: new Date().toISOString(), is_archived: false, archived_at: null }
+      { id: 1, user_id: 3, first_name: "Sokha", last_name: "Meas", date_of_birth: "2004-05-12", place_of_birth: "Phnom Penh", university_name: "RUPP University", email: "sokha@gmail.com", phone_number: "012345678", facebook: "https://facebook.com/sokha", telegram: "https://t.me/sokha", sex: "female", profile_photo: null, move_in_date: new Date().toISOString(), is_archived: false, archived_at: null },
+      { id: 2, user_id: 4, first_name: "Dara", last_name: "Sok", date_of_birth: "2003-08-22", place_of_birth: "Kandal", university_name: "ITC University", email: "dara@gmail.com", phone_number: "098765432", facebook: "https://facebook.com/dara", telegram: "https://t.me/dara", sex: "male", profile_photo: null, move_in_date: new Date().toISOString(), is_archived: false, archived_at: null }
     ],
     rooms: [
       { id: 1, room_label: "Room 1", gender: "male", created_at: new Date().toISOString() },
@@ -623,6 +631,44 @@ app.delete("/api/superadmin/admins/:id", async (req, res) => {
 
 
 // --- ADMIN ENDPOINTS FOR STUDENTS CRUD ---
+app.get("/api/admins/students/absences", async (req, res) => {
+  if (!useLocalFallback && pgPool) {
+    try {
+      const q = `
+        SELECT a.student_id, COUNT(a.id) as count
+        FROM attendance a
+        INNER JOIN meeting_sessions s ON a.session_id = s.id
+        WHERE a.status = 'absent' AND EXTRACT(YEAR FROM s.started_at) = EXTRACT(YEAR FROM NOW())
+        GROUP BY a.student_id
+      `;
+      const result = await pgPool.query(q);
+      const output: Record<number, number> = {};
+      result.rows.forEach(row => {
+        output[row.student_id] = parseInt(row.count) || 0;
+      });
+      return res.json(output);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // Fallback map
+  const output: Record<number, number> = {};
+  const currentYear = new Date().getFullYear();
+  localData.attendance.forEach(a => {
+    if (a.status !== 'absent') return;
+    const s = localData.meeting_sessions.find(ms => ms.id === a.session_id);
+    if (s && s.started_at) {
+      const d = new Date(s.started_at);
+      if (d.getFullYear() === currentYear) {
+        output[a.student_id] = (output[a.student_id] || 0) + 1;
+      }
+    }
+  });
+  
+  res.json(output);
+});
+
 app.get("/api/admins/students", async (req, res) => {
   if (!useLocalFallback && pgPool) {
     try {
@@ -630,6 +676,7 @@ app.get("/api/admins/students", async (req, res) => {
         SELECT u.id, u.username, u.is_active, u.created_at,
                p.first_name, p.last_name, p.date_of_birth, p.place_of_birth,
                p.university_name, p.email, p.phone_number, p.sex, p.profile_photo, p.move_in_date,
+               p.facebook, p.telegram,
                p.is_archived, p.archived_at,
                rm.room_id, r.room_label
         FROM users u
@@ -731,6 +778,8 @@ app.post("/api/admins/students", async (req, res) => {
     university_name: "",
     email: "",
     phone_number: "",
+    facebook: "",
+    telegram: "",
     sex: sex.toLowerCase(),
     profile_photo: null,
     move_in_date: new Date().toISOString(),
@@ -1852,7 +1901,7 @@ app.get("/api/students/profile/:id", async (req, res) => {
 
 app.put("/api/students/profile/:id", async (req, res) => {
   const userId = parseInt(req.params.id);
-  const { first_name, last_name, date_of_birth, place_of_birth, university_name, email, phone_number, profile_photo } = req.body;
+  const { first_name, last_name, date_of_birth, place_of_birth, university_name, email, phone_number, profile_photo, facebook, telegram } = req.body;
 
   if (!useLocalFallback && pgPool) {
     try {
@@ -1865,9 +1914,11 @@ app.put("/api/students/profile/:id", async (req, res) => {
           university_name = $5,
           email = $6,
           phone_number = $7,
-          profile_photo = COALESCE($8, profile_photo)
-        WHERE user_id = $9
-      `, [first_name, last_name, date_of_birth || null, place_of_birth, university_name, email, phone_number, profile_photo, userId]);
+          profile_photo = COALESCE($8, profile_photo),
+          facebook = $9,
+          telegram = $10
+        WHERE user_id = $11
+      `, [first_name, last_name, date_of_birth || null, place_of_birth, university_name, email, phone_number, profile_photo, facebook || "", telegram || "", userId]);
       
       return res.json({ success: true });
     } catch (e: any) {
@@ -1886,6 +1937,8 @@ app.put("/api/students/profile/:id", async (req, res) => {
   p.university_name = university_name;
   p.email = email;
   p.phone_number = phone_number;
+  p.facebook = facebook || "";
+  p.telegram = telegram || "";
   if (profile_photo) p.profile_photo = profile_photo;
 
   saveLocalData();
@@ -2265,6 +2318,84 @@ app.post("/api/admins/requests/prune-moveouts", async (req, res) => {
 
   await writeAuditLog(admin_id, "PRUNE_MOVEOUTS", "move_out_requests", 0, `Admin ${admin_name} pruned ${prunedCount} old moveout applications in fallback`);
   res.json({ success: true, count: prunedCount });
+});
+
+// Clear all late/absent excuse request logs
+app.post("/api/admins/requests/clear-late-absent", async (req, res) => {
+  const { admin_id, admin_name } = req.body;
+  if (!useLocalFallback && pgPool) {
+    try {
+      await pgPool.query("DELETE FROM late_absent_requests");
+      await writeAuditLog(admin_id, "CLEAR_ALL_LATE_ABSENT", "late_absent_requests", 0, `Admin ${admin_name} purged all late/absent excuse requests`);
+      return res.json({ success: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  localData.late_absent_requests = [];
+  saveLocalData();
+  await writeAuditLog(admin_id, "CLEAR_ALL_LATE_ABSENT", "late_absent_requests", 0, `Admin ${admin_name} purged all late/absent excuse requests in fallback`);
+  res.json({ success: true });
+});
+
+// Clear all student move-out applications
+app.post("/api/admins/requests/clear-moveouts", async (req, res) => {
+  const { admin_id, admin_name } = req.body;
+  if (!useLocalFallback && pgPool) {
+    try {
+      await pgPool.query("DELETE FROM move_out_requests");
+      await writeAuditLog(admin_id, "CLEAR_ALL_MOVEOUT_REQUESTS", "move_out_requests", 0, `Admin ${admin_name} purged all move-out requests`);
+      return res.json({ success: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  localData.move_out_requests = [];
+  saveLocalData();
+  await writeAuditLog(admin_id, "CLEAR_ALL_MOVEOUT_REQUESTS", "move_out_requests", 0, `Admin ${admin_name} purged all move-out requests in fallback`);
+  res.json({ success: true });
+});
+
+// Clear recipient's individual notifications (For both Admins and Students to clear their own messages)
+app.post("/api/notifications/clear-user-notifications", async (req, res) => {
+  const { recipient_id } = req.body;
+  if (!recipient_id) return res.status(400).json({ error: "Required fields missing" });
+
+  if (!useLocalFallback && pgPool) {
+    try {
+      await pgPool.query("DELETE FROM notifications WHERE recipient_id = $1", [recipient_id]);
+      return res.json({ success: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  localData.notifications = localData.notifications.filter(n => n.recipient_id !== recipient_id);
+  saveLocalData();
+  res.json({ success: true });
+});
+
+// Clear all system audit log events (Superadmin action)
+app.post("/api/superadmin/clear-audit-logs", async (req, res) => {
+  const { superadmin_id, superadmin_name } = req.body;
+  if (!superadmin_id) return res.status(400).json({ error: "Required fields missing" });
+
+  if (!useLocalFallback && pgPool) {
+    try {
+      await pgPool.query("DELETE FROM audit_logs");
+      await writeAuditLog(superadmin_id, "CLEAR_ALL_AUDIT_LOGS", "audit_logs", 0, `Superadmin ${superadmin_name} cleared all event audit trail records`);
+      return res.json({ success: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  localData.audit_logs = [];
+  saveLocalData();
+  await writeAuditLog(superadmin_id, "CLEAR_ALL_AUDIT_LOGS", "audit_logs", 0, `Superadmin ${superadmin_name} cleared all event audit trail records in fallback`);
+  res.json({ success: true });
 });
 
 

@@ -41,16 +41,20 @@ export default function SuperadminDashboard({
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const adminRes = await fetch("/api/superadmin/admins");
-      const adminData = await adminRes.json();
+      const [adminRes, logsRes, dbRes] = await Promise.all([
+        fetch("/api/superadmin/admins"),
+        fetch("/api/audit-logs"),
+        fetch("/api/system/db-status")
+      ]);
+
+      const [adminData, logsData, dbData] = await Promise.all([
+        adminRes.json(),
+        logsRes.json(),
+        dbRes.json()
+      ]);
+
       setAdmins(adminData);
-
-      const logsRes = await fetch("/api/audit-logs");
-      const logsData = await logsRes.json();
       setAuditLogs(logsData);
-
-      const dbRes = await fetch("/api/system/db-status");
-      const dbData = await dbRes.json();
       setDbMode(dbData.mode);
     } catch (e) {
       console.error(e);
@@ -194,6 +198,34 @@ export default function SuperadminDashboard({
           fetchData();
         } catch (err) {
           console.error(err);
+        }
+      }
+    );
+  };
+
+  const handleClearAuditLogs = () => {
+    triggerConfirm(
+      "Purge Control Hub Logs",
+      "Are you absolutely sure you want to permanently delete all administrative logs inside the event audit trail? This action cannot be undone.",
+      async () => {
+        setSubmitting(true);
+        try {
+          const res = await fetch("/api/superadmin/clear-audit-logs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ superadmin_id: userId, superadmin_name: username })
+          });
+          const data = await res.json();
+          if (data.error) {
+            alert(data.error);
+          } else {
+            triggerSuccess("Audit Logs Purged", "All historical administrative transactions have been completely cleared from the system.");
+            await fetchData();
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setSubmitting(false);
         }
       }
     );
@@ -358,10 +390,20 @@ export default function SuperadminDashboard({
         {/* Global Audit Log Section */}
         <div className="col-12 col-lg-6">
           <div className="card border-0 shadow-sm rounded-4">
-            <div className="card-header bg-secondary text-white rounded-top-4 p-3 border-0">
+            <div className="card-header bg-secondary text-white rounded-top-4 p-3 border-0 d-flex justify-content-between align-items-center">
               <h5 className="fw-bold mb-0 d-flex align-items-center gap-2">
                 📋 Dynamic Audit Trail (Logs)
               </h5>
+              {auditLogs.length > 0 && (
+                <button 
+                  className="btn btn-danger btn-sm rounded-3 fw-bold text-white d-flex align-items-center gap-1 border"
+                  style={{ borderColor: 'rgba(255,255,255,0.3)' }}
+                  onClick={handleClearAuditLogs}
+                  id="btn-clear-sys-logs"
+                >
+                  🗑️ Clear All Logs
+                </button>
+              )}
             </div>
             <div className="card-body p-4">
               <p className="text-muted small mb-3">All crucial record transactions are documented for admin accountability.</p>

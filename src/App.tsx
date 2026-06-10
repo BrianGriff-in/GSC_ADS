@@ -131,9 +131,6 @@ export default function App() {
               <p className="text-slate-500 text-uppercase tracking-wider small mb-3" style={{ fontSize: '10.5px' }}>
                 Resident attendance checks, room mappings, excuses & applications
               </p>
-              <div className="badge bg-secondary-subtle text-secondary py-2 px-3 tracking-wider font-monospace">
-                📶 {systemMode}
-              </div>
             </div>
 
             <form onSubmit={handleLogin} className="needs-validation">
@@ -184,45 +181,6 @@ export default function App() {
                 {loading ? 'Verifying profile...' : 'Authenticate'}
               </button>
             </form>
-
-            {/* Test accounts pre-fills wrapper */}
-            <div className="mt-4 pt-3 border-top border-slate-100">
-              <p className="text-center text-slate-500 text-xs uppercase tracking-widest fw-bold mb-2">⚡ Quick Test Accounts Checklist</p>
-              <div className="row g-2 justify-content-center text-center">
-                <div className="col-12 col-sm-6">
-                  <button 
-                    onClick={() => prefillCredentials("superadmin", "admin123")} 
-                    className="btn btn-xs btn-outline-danger w-100 font-monospace"
-                  >
-                    Superadmin
-                  </button>
-                </div>
-                <div className="col-12 col-sm-6">
-                  <button 
-                    onClick={() => prefillCredentials("admin1", "admin123")} 
-                    className="btn btn-xs btn-outline-success w-100 font-monospace"
-                  >
-                    Admin Manager
-                  </button>
-                </div>
-                <div className="col-12 col-sm-6">
-                  <button 
-                    onClick={() => prefillCredentials("BF001", "student123")} 
-                    className="btn btn-xs btn-outline-primary w-100 font-monospace"
-                  >
-                    Boy (BF001)
-                  </button>
-                </div>
-                <div className="col-12 col-sm-6">
-                  <button 
-                    onClick={() => prefillCredentials("GF001", "student123")} 
-                    className="btn btn-xs btn-outline-warning w-100 font-monospace text-dark"
-                  >
-                    Girl (GF001)
-                  </button>
-                </div>
-              </div>
-            </div>
 
           </div>
         </div>

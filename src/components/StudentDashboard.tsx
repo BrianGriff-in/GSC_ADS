@@ -48,6 +48,8 @@ export default function StudentDashboard({
   const [uni, setUniversity] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [facebook, setFacebook] = useState('');
+  const [telegram, setTelegram] = useState('');
   const [photoBase64, setPhotoBase64] = useState<string | null>(null);
 
   // Filter keys inside logs
@@ -67,13 +69,24 @@ export default function StudentDashboard({
   const fetchStudentData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const dbRes = await fetch("/api/system/db-status");
-      const dbData = await dbRes.json();
+      const [dbRes, profRes, listRes, moRes, notRes] = await Promise.all([
+        fetch("/api/system/db-status"),
+        fetch(`/api/students/profile/${userId}`),
+        fetch(`/api/students/attendance/${userId}`),
+        fetch(`/api/students/requests/moveout/${userId}`),
+        fetch(`/api/notifications/${userId}`)
+      ]);
+
+      const [dbData, profData, listData, moData, notData] = await Promise.all([
+        dbRes.json(),
+        profRes.json(),
+        listRes.json(),
+        moRes.json(),
+        notRes.json()
+      ]);
+
       setDbMode(dbData.mode);
 
-      // Fetch profile
-      const profRes = await fetch(`/api/students/profile/${userId}`);
-      const profData = await profRes.json();
       if (!profData.error) {
         setProfile(profData);
         setFirstName(profData.first_name || '');
@@ -83,22 +96,13 @@ export default function StudentDashboard({
         setUniversity(profData.university_name || '');
         setEmail(profData.email || '');
         setPhone(profData.phone_number || '');
+        setFacebook(profData.facebook || '');
+        setTelegram(profData.telegram || '');
         setPhotoBase64(profData.profile_photo || null);
       }
 
-      // Fetch attendance history
-      const listRes = await fetch(`/api/students/attendance/${userId}`);
-      const listData = await listRes.json();
       setAttendanceList(listData);
-
-      // Fetch move-out request list
-      const moRes = await fetch(`/api/students/requests/moveout/${userId}`);
-      const moData = await moRes.json();
       setMoveOuts(moData);
-
-      // Fetch student notification log
-      const notRes = await fetch(`/api/notifications/${userId}`);
-      const notData = await notRes.json();
       setNotifications(notData);
 
     } catch (e) {
@@ -166,6 +170,8 @@ export default function StudentDashboard({
               university_name: uni,
               email,
               phone_number: phone,
+              facebook,
+              telegram,
               profile_photo: photoBase64
             })
           });
@@ -303,6 +309,35 @@ export default function StudentDashboard({
     }).then(() => fetchStudentData());
   };
 
+  // Clear all for currently logged in student
+  const handleClearAllNotifications = () => {
+    triggerConfirm(
+      "Clear Your Alerts",
+      "Are you sure you want to permanently clear all your notification messages? This action cannot be undone.",
+      async () => {
+        setSubmitting(true);
+        try {
+          const res = await fetch("/api/notifications/clear-user-notifications", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ recipient_id: userId })
+          });
+          const d = await res.json();
+          if (d.error) {
+            alert(d.error);
+          } else {
+            triggerSuccess("Notifications Cleared", "Your personal notification logs have been successfully cleared.");
+            await fetchStudentData();
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setSubmitting(false);
+        }
+      }
+    );
+  };
+
   // Filter matching logs list
   const filteredList = attendanceList.filter(att => {
     const started = att.started_at ? new Date(att.started_at) : new Date();
@@ -364,7 +399,18 @@ export default function StudentDashboard({
               )}
             </button>
             <ul className="dropdown-menu dropdown-menu-end p-3 border-slate-200" style={{ width: '310px' }}>
-              <h6 className="fw-bold text-dark border-bottom pb-2 mb-2 text-uppercase tracking-wider small">My Alerts</h6>
+              <div className="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                <span className="fw-bold text-dark text-uppercase tracking-wider small">My Alerts</span>
+                {notifications.length > 0 && (
+                  <button 
+                    className="btn btn-xs btn-link text-danger p-0 h-auto text-decoration-none fw-semibold" 
+                    onClick={handleClearAllNotifications}
+                    id="clear-student-alerts-btn"
+                  >
+                    🗑️ Clear
+                  </button>
+                )}
+              </div>
               <div className="overflow-auto" style={{ maxHeight: '200px' }}>
                 {notifications.length === 0 ? (
                   <p className="text-center text-muted small py-2">No alarms received.</p>
@@ -446,6 +492,14 @@ export default function StudentDashboard({
                 <div className="col-md-6">
                   <label className="form-label text-muted small fw-medium">Phone Number</label>
                   <input type="text" className="form-control" value={phone} onChange={e => setPhone(e.target.value)} placeholder="e.g. 012345678" />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label text-muted small fw-medium">Facebook Profile URL</label>
+                  <input type="url" className="form-control" value={facebook} onChange={e => setFacebook(e.target.value)} placeholder="e.g. https://facebook.com/username" id="student-facebook-input" />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label text-muted small fw-medium">Telegram Profile URL / Link</label>
+                  <input type="url" className="form-control" value={telegram} onChange={e => setTelegram(e.target.value)} placeholder="e.g. https://t.me/username" id="student-telegram-input" />
                 </div>
 
                 <div className="col-md-6">
