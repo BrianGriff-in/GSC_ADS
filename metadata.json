@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Dorm Attendance",
+  "description": "Full-stack Dorm Attendance Tracking System with role layouts for Superadmin, Dorm Managers and Students, incorporating room assignment, real-time checked metrics, late excuses, move-out requests, audit logs and detailed custom charts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

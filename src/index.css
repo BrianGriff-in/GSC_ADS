@@ -1,0 +1,344 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* --- Geometric Balance Theme Overrides --- */
+
+body {
+  font-family: "Inter", -apple-system, blinkmacsystemfont, "Segoe UI", roboto, sans-serif !important;
+  background-color: #F1F5F9 !important;
+  color: #1E293B !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Global Font Utilities */
+.font-monospace, code, pre {
+  font-family: "JetBrains Mono", monospace !important;
+}
+
+/* Sharp Rectangular Elements */
+.card, 
+.modal-content, 
+.form-control, 
+.form-select, 
+.btn, 
+.badge, 
+.dropdown-menu,
+.nav-link,
+.alert,
+.accordion-item,
+.list-group-item,
+.input-group,
+.input-group-text,
+input,
+select,
+textarea,
+button {
+  border-radius: 0px !important;
+}
+
+/* Custom Card Layout style */
+.card {
+  box-shadow: none !important;
+  border: 1px solid #E2E8F0 !important;
+  background-color: #FFFFFF !important;
+  transition: border-color 0.15s ease-in-out;
+}
+
+.card:hover {
+  border-color: #CBD5E1 !important;
+}
+
+.card-header {
+  background-color: #F8FAFC !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+  padding: 16px 24px !important;
+}
+
+/* Buttons Transformation to High-Tech Geometric Style */
+.btn {
+  text-transform: uppercase !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.1em !important;
+  padding: 10px 18px !important;
+  transition: all 0.15s ease-in-out !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent !important;
+}
+
+.btn-sm, .btn-xs, .btn-group-sm > .btn {
+  padding: 6px 12px !important;
+  font-size: 9px !important;
+  letter-spacing: 0.08em !important;
+}
+
+/* Custom Button States */
+.btn-dark {
+  background-color: #1E293B !important;
+  color: #FFFFFF !important;
+  border-color: #1E293B !important;
+}
+
+.btn-dark:hover {
+  background-color: #0F172A !important;
+  border-color: #0F172A !important;
+}
+
+.btn-primary {
+  background-color: #2563EB !important;
+  color: #FFFFFF !important;
+  border-color: #2563EB !important;
+}
+
+.btn-primary:hover {
+  background-color: #1D4ED8 !important;
+  border-color: #1D4ED8 !important;
+}
+
+.btn-success {
+  background-color: #10B981 !important;
+  color: #FFFFFF !important;
+  border-color: #10B981 !important;
+}
+
+.btn-success:hover {
+  background-color: #059669 !important;
+  border-color: #059669 !important;
+}
+
+.btn-danger {
+  background-color: #EF4444 !important;
+  color: #FFFFFF !important;
+  border-color: #EF4444 !important;
+}
+
+.btn-danger:hover {
+  background-color: #DC2626 !important;
+  border-color: #DC2626 !important;
+}
+
+.btn-warning {
+  background-color: #F59E0B !important;
+  color: #1E293B !important;
+  border-color: #F59E0B !important;
+}
+
+.btn-warning:hover {
+  background-color: #D97706 !important;
+  border-color: #D97706 !important;
+}
+
+.btn-outline-secondary, .btn-light {
+  background-color: #FFFFFF !important;
+  color: #475569 !important;
+  border-color: #CBD5E1 !important;
+}
+
+.btn-outline-secondary:hover, .btn-light:hover {
+  background-color: #F8FAFC !important;
+  color: #1E293B !important;
+  border-color: #94A3B8 !important;
+}
+
+.btn-outline-light {
+  background-color: transparent !important;
+  color: #CBD5E1 !important;
+  border-color: #475569 !important;
+}
+
+.btn-outline-light:hover {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #FFFFFF !important;
+  border-color: #94A3B8 !important;
+}
+
+/* Form Controls with Slate Contrast */
+.form-control, .form-select {
+  border: 1px solid #CBD5E1 !important;
+  color: #1E293B !important;
+  background-color: #FFFFFF !important;
+  font-size: 13px !important;
+  padding: 8px 12px !important;
+  box-shadow: none !important;
+}
+
+.form-control:focus, .form-select:focus {
+  border-color: #2563EB !important;
+  outline: none !important;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15) !important;
+}
+
+/* Badges styling as custom tags */
+.badge {
+  text-transform: uppercase !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  padding: 4px 8px !important;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0px !important;
+}
+
+.bg-primary, .bg-primary-subtle {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+  color: #2563EB !important;
+  border: 1px solid rgba(37, 99, 235, 0.2) !important;
+}
+
+.bg-success, .bg-success-subtle {
+  background-color: rgba(16, 185, 129, 0.1) !important;
+  color: #10B981 !important;
+  border: 1px solid rgba(16, 185, 129, 0.2) !important;
+}
+
+.bg-danger, .bg-danger-subtle {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  color: #EF4444 !important;
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
+}
+
+.bg-warning, .bg-warning-subtle {
+  background-color: rgba(245, 158, 11, 0.1) !important;
+  color: #F59E0B !important;
+  border: 1px solid rgba(245, 158, 11, 0.2) !important;
+}
+
+.bg-secondary, .bg-secondary-subtle {
+  background-color: rgba(100, 116, 139, 0.1) !important;
+  color: #64748B !important;
+  border: 1px solid rgba(100, 116, 139, 0.15) !important;
+}
+
+.bg-dark {
+  background-color: #1E293B !important;
+  color: #F8FAFC !important;
+  border: 1px solid #334155 !important;
+}
+
+/* Custom Table Layout and Grid Lines */
+.table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+}
+
+.table th, .table-light th {
+  background-color: #F8FAFC !important;
+  color: #475569 !important;
+  font-size: 9px !important;
+  text-transform: uppercase !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  border-bottom: 2px solid #E2E8F0 !important;
+  padding: 12px 16px !important;
+}
+
+.table td {
+  padding: 12px 16px !important;
+  font-size: 13px !important;
+  border-bottom: 1px solid #F1F5F9 !important;
+  color: #334155 !important;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: #F8FAFC !important;
+}
+
+/* Header Panels in "Geometric Balance" Style: Clean dark slate block */
+header.bg-dark {
+  background-color: #1E293B !important;
+  border: 1px solid #1E293B !important;
+  padding: 24px !important;
+}
+
+/* Navigation System styling */
+.nav-tabs {
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.nav-tabs .nav-link {
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.08em !important;
+  color: #64748B !important;
+  border: none !important;
+  padding: 12px 20px !important;
+  background: transparent !important;
+}
+
+.nav-tabs .nav-link.active {
+  color: #0F172A !important;
+  border-bottom: 2px solid #2563EB !important;
+}
+
+.nav-pills {
+  background-color: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  padding: 4px !important;
+}
+
+.nav-pills .nav-link {
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.06em !important;
+  color: #64748B !important;
+  padding: 10px 16px !important;
+}
+
+.nav-pills .nav-link.active {
+  background-color: #1E293B !important;
+  color: #FFFFFF !important;
+}
+
+/* Dropdown styling */
+.dropdown-menu {
+  border: 1px solid #CBD5E1 !important;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08) !important;
+  background-color: #FFFFFF !important;
+  padding: 8px 0 !important;
+}
+
+/* Custom subtle progress bars */
+.progress, .progress-bar {
+  border-radius: 0px !important;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* 3D Horizontal Flipping Animation */
+@keyframes flip-horizontal {
+  0% {
+    transform: perspective(1000px) rotateY(0deg);
+  }
+  100% {
+    transform: perspective(1000px) rotateY(360deg);
+  }
+}
+
+.animate-flip-3d {
+  animation: flip-horizontal 2.5s infinite linear;
+}
+
