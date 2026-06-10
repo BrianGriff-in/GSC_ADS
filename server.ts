@@ -1541,14 +1541,14 @@ app.post("/api/admins/sessions/create", async (req, res) => {
       );
       const sessionId = nSess.rows[0].id;
 
-       // Automatically register all non-archived students as initially "absent" snapshots
+       // Automatically register all active students as initially "absent" snapshots
       // Capture their current room designation at this instant
       const stQuery = `
         SELECT u.id as student_id, COALESCE(rm.room_id, 0) as room_id 
         FROM users u
         INNER JOIN student_profiles p ON u.id = p.user_id
         LEFT JOIN room_members rm ON u.id = rm.student_id
-        WHERE u.role = 'student' AND p.is_archived = FALSE AND u.is_active = TRUE
+        WHERE u.role = 'student' AND u.is_active = TRUE
       `;
       const students = await pgPool.query(stQuery);
       
@@ -1587,7 +1587,7 @@ app.post("/api/admins/sessions/create", async (req, res) => {
   const activeStudents = localData.users.filter(u => u.role === "student" && u.is_active).map(u => {
     const prof = localData.student_profiles.find(p => p.user_id === u.id);
     const rm = localData.room_members.find(m => m.student_id === u.id);
-    if (prof && !prof.is_archived) {
+    if (prof) {
       return { student_id: u.id, room_id: rm ? rm.room_id : 0 };
     }
     return null;
@@ -2105,13 +2105,13 @@ app.post("/api/admins/sessions/historical", async (req, res) => {
       );
       const sessionId = nSess.rows[0].id;
 
-      // Automatically register all active non-archived students as initially "absent" snapshots
+      // Automatically register all active students as initially "absent" snapshots
       const stQuery = `
         SELECT u.id as student_id, COALESCE(rm.room_id, 0) as room_id 
         FROM users u
         INNER JOIN student_profiles p ON u.id = p.user_id
         LEFT JOIN room_members rm ON u.id = rm.student_id
-        WHERE u.role = 'student' AND p.is_archived = FALSE AND u.is_active = TRUE
+        WHERE u.role = 'student' AND u.is_active = TRUE
       `;
       const students = await pgPool.query(stQuery);
       
@@ -2145,7 +2145,7 @@ app.post("/api/admins/sessions/historical", async (req, res) => {
   const activeStudents = localData.users.filter(u => u.role === "student" && u.is_active).map(u => {
     const prof = localData.student_profiles.find(p => p.user_id === u.id);
     const rm = localData.room_members.find(m => m.student_id === u.id);
-    if (prof && !prof.is_archived) {
+    if (prof) {
       return { student_id: u.id, room_id: rm ? rm.room_id : 0 };
     }
     return null;

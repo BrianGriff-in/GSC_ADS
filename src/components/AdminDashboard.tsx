@@ -1450,7 +1450,20 @@ export default function AdminDashboard({
               </div>
               <div className="col-md-2">
                 <label className="form-label text-muted small fw-medium">Filter Gender</label>
-                <select className="form-select" value={studentGenderTab} onChange={e => setStudentGenderTab(e.target.value as any)}>
+                <select 
+                  className="form-select" 
+                  value={studentGenderTab} 
+                  onChange={e => {
+                    const nextGender = e.target.value as any;
+                    setStudentGenderTab(nextGender);
+                    if (nextGender !== 'all' && selectedRoomFilter !== 'all') {
+                      const selectedRoom = rooms.find(r => String(r.id) === selectedRoomFilter);
+                      if (selectedRoom && selectedRoom.gender !== nextGender) {
+                        setSelectedRoomFilter('all');
+                      }
+                    }
+                  }}
+                >
                   <option value="all">Both (Boys & Girls)</option>
                   <option value="male">Boys Only (BFxxx)</option>
                   <option value="female">Girls Only (GFxxx)</option>
@@ -1460,9 +1473,11 @@ export default function AdminDashboard({
                 <label className="form-label text-muted small fw-medium">Room Assigned Unit</label>
                 <select className="form-select" value={selectedRoomFilter} onChange={e => setSelectedRoomFilter(e.target.value)}>
                   <option value="all">All Rooms</option>
-                  {rooms.map(r => (
-                    <option key={r.id} value={r.id}>{r.room_label}</option>
-                  ))}
+                  {rooms
+                    .filter(r => studentGenderTab === 'all' || r.gender === studentGenderTab)
+                    .map(r => (
+                      <option key={r.id} value={r.id}>{r.room_label}</option>
+                    ))}
                 </select>
               </div>
               <div className="col-md-2">
