@@ -2332,10 +2332,6 @@ export default function AdminDashboard({
         <div className="print-report-layout" style={{ color: 'black', background: 'white' }}>
           {/* Cover Header */}
           <div style={{ textAlign: 'center', marginBottom: '30px', fontFamily: 'serif' }}>
-            <h4 style={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 5px 0', fontSize: '13pt' }}>ROYAL UNIVERSITY OF PHNOM PENH</h4>
-            <h5 style={{ fontWeight: 'normal', margin: '0 0 15px 0', fontSize: '10pt', letterSpacing: '0.5px' }}>DORMITORY MANAGEMENT DEPARTMENT</h5>
-            <div style={{ borderBottom: '2px double #000000', width: '80px', margin: '0 auto 25px auto' }}></div>
-            
             <h3 className="print-title" style={{ fontWeight: 'bold', fontSize: '16pt', margin: '15px 0 5px 0' }}>{printData.title}</h3>
             <p className="print-subtitle" style={{ fontSize: '10.5pt', fontStyle: 'italic', margin: '0 0 20px 0' }}>{printData.subtitle}</p>
           </div>
@@ -2424,21 +2420,7 @@ export default function AdminDashboard({
             </tbody>
           </table>
 
-          {/* Validation section */}
-          <div style={{ marginTop: '50px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '50px', fontSize: '10.5pt', fontFamily: 'serif', pageBreakInside: 'avoid' }}>
-            <div style={{ textAlign: 'center' }}>
-              <p>Prepared by:</p>
-              <div style={{ height: '60px' }}></div>
-              <p style={{ borderBottom: '1px solid #000000', display: 'inline-block', width: '180px' }}></p>
-              <p style={{ margin: '5px 0 0 0', fontStyle: 'italic', fontSize: '9.5pt' }}>Dormitory Gatekeeper / Assistant</p>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <p>Approved & Signed by:</p>
-              <div style={{ height: '60px' }}></div>
-              <p style={{ borderBottom: '1px solid #000000', display: 'inline-block', width: '180px' }}></p>
-              <p style={{ margin: '5px 0 0 0', fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase' }}>DORMITORY DIRECTOR</p>
-            </div>
-          </div>
+
         </div>,
         document.body
       )}
