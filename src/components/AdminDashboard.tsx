@@ -37,6 +37,10 @@ export default function AdminDashboard({
   const [newRoomLabel, setNewRoomLabel] = useState('');
   const [newRoomGender, setNewRoomGender] = useState<'male' | 'female'>('male');
   
+  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+  const [editRoomLabel, setEditRoomLabel] = useState('');
+  const [editRoomGender, setEditRoomGender] = useState<'male' | 'female'>('male');
+  
   const [newStudentGender, setNewStudentGender] = useState<'male' | 'female'>('male');
   const [newStudentPassword, setNewStudentPassword] = useState('student123');
 
@@ -442,6 +446,45 @@ export default function AdminDashboard({
           if (d.error) {
             alert(d.error);
           } else {
+            await fetchAllData();
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setSubmitting(false);
+        }
+      }
+    );
+  };
+
+  // Update Room
+  const handleUpdateRoom = () => {
+    if (!editingRoom) return;
+    if (!editRoomLabel.trim()) {
+      alert("Label is required");
+      return;
+    }
+    triggerConfirm(
+      "Edit Dorm Room",
+      `Are you sure you want to update this room's details to label '${editRoomLabel}' with designation '${editRoomGender}'?`,
+      async () => {
+        setSubmitting(true);
+        try {
+          const res = await fetch(`/api/admins/rooms/${editingRoom.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              room_label: editRoomLabel,
+              gender: editRoomGender,
+              admin_id: userId,
+              admin_name: username
+            })
+          });
+          const data = await res.json();
+          if (data.error) {
+            alert(data.error);
+          } else {
+            setEditingRoom(null);
             await fetchAllData();
           }
         } catch (e) {
@@ -1919,6 +1962,16 @@ export default function AdminDashboard({
                         </td>
                         <td className="text-end">
                           <button 
+                            className="btn btn-sm btn-outline-primary me-2"
+                            onClick={() => {
+                              setEditingRoom(r);
+                              setEditRoomLabel(r.room_label);
+                              setEditRoomGender(r.gender as any);
+                            }}
+                          >
+                            EDIT
+                          </button>
+                          <button 
                             className="btn btn-sm btn-outline-danger" 
                             disabled={(r.current_member_count || 0) > 0}
                             title="Rooms must be completely empty to delete"
@@ -1934,6 +1987,47 @@ export default function AdminDashboard({
               </div>
             </div>
           </div>
+
+          {/* Edit Room Modal */}
+          {editingRoom && (
+            <div className="modal fade show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }} tabIndex={-1}>
+              <div className="modal-dialog modal-dialog-centered">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h5 className="modal-title fw-bold">Edit Room Details</h5>
+                    <button type="button" className="btn-close" onClick={() => setEditingRoom(null)} aria-label="Close"></button>
+                  </div>
+                  <div className="modal-body">
+                    <div className="mb-3">
+                      <label className="form-label text-muted small">Literal Room Label</label>
+                      <input 
+                        type="text" 
+                        className="form-control" 
+                        value={editRoomLabel}
+                        onChange={e => setEditRoomLabel(e.target.value)}
+                        placeholder="e.g. Room 5, Room 6"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label text-muted small">Designated Sex</label>
+                      <select 
+                        className="form-select" 
+                        value={editRoomGender} 
+                        onChange={e => setEditRoomGender(e.target.value as any)}
+                      >
+                        <option value="male">Boys designates Only</option>
+                        <option value="female">Girls designates Only</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="modal-footer">
+                    <button type="button" className="btn btn-outline-secondary" onClick={() => setEditingRoom(null)}>Cancel</button>
+                    <button type="button" className="btn btn-primary text-white fw-bold" onClick={handleUpdateRoom}>Save Changes</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

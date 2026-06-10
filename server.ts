@@ -1380,8 +1380,8 @@ app.post("/api/admins/rooms", async (req, res) => {
 
   if (!useLocalFallback && pgPool) {
     try {
-      const exist = await pgPool.query("SELECT id FROM rooms WHERE room_label = $1", [room_label]);
-      if (exist.rowCount && exist.rowCount > 0) return res.status(400).json({ error: "Room label already exists" });
+      const exist = await pgPool.query("SELECT id FROM rooms WHERE room_label = $1 AND gender = $2", [room_label, gender.toLowerCase()]);
+      if (exist.rowCount && exist.rowCount > 0) return res.status(400).json({ error: "Room with this label and gender already exists" });
 
       const nRoom = await pgPool.query(
         "INSERT INTO rooms (room_label, gender) VALUES ($1, $2) RETURNING *",
@@ -1394,8 +1394,8 @@ app.post("/api/admins/rooms", async (req, res) => {
     }
   }
 
-  const exist = localData.rooms.find(r => r.room_label.toLowerCase() === room_label.toLowerCase());
-  if (exist) return res.status(400).json({ error: "Room label already exists" });
+  const exist = localData.rooms.find(r => r.room_label.toLowerCase() === room_label.toLowerCase() && r.gender === gender.toLowerCase());
+  if (exist) return res.status(400).json({ error: "Room with this label and gender already exists" });
 
   const rId = localData.rooms.length ? Math.max(...localData.rooms.map(r => r.id)) + 1 : 1;
   const room = {
@@ -1409,6 +1409,43 @@ app.post("/api/admins/rooms", async (req, res) => {
 
   await writeAuditLog(admin_id, "CREATE_ROOM", "room", rId, `Admin ${admin_name} created room ${room_label} (${gender}) in fallback`);
   res.json(room);
+});
+
+app.put("/api/admins/rooms/:id", async (req, res) => {
+  const roomId = parseInt(req.params.id);
+  const { room_label, gender, admin_id, admin_name } = req.body;
+  if (!room_label || !gender) return res.status(400).json({ error: "Label and Gender are required" });
+
+  if (!useLocalFallback && pgPool) {
+    try {
+      const exist = await pgPool.query("SELECT id FROM rooms WHERE room_label = $1 AND gender = $2 AND id <> $3", [room_label, gender.toLowerCase(), roomId]);
+      if (exist.rowCount && exist.rowCount > 0) return res.status(400).json({ error: "Another room with this label and gender already exists" });
+
+      const uRoom = await pgPool.query(
+        "UPDATE rooms SET room_label = $1, gender = $2 WHERE id = $3 RETURNING *",
+        [room_label, gender.toLowerCase(), roomId]
+      );
+      if (uRoom.rowCount === 0) return res.status(404).json({ error: "Room not found" });
+
+      await writeAuditLog(admin_id, "UPDATE_ROOM", "room", roomId, `Admin ${admin_name} updated room ${room_label} (${gender})`);
+      return res.json(uRoom.rows[0]);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  const exist = localData.rooms.find(r => r.room_label.toLowerCase() === room_label.toLowerCase() && r.gender === gender.toLowerCase() && r.id !== roomId);
+  if (exist) return res.status(400).json({ error: "Another room with this label and gender already exists" });
+
+  const idx = localData.rooms.findIndex(r => r.id === roomId);
+  if (idx === -1) return res.status(404).json({ error: "Room not found" });
+
+  localData.rooms[idx].room_label = room_label;
+  localData.rooms[idx].gender = gender.toLowerCase();
+  saveLocalData();
+
+  await writeAuditLog(admin_id, "UPDATE_ROOM", "room", roomId, `Admin ${admin_name} updated room ${room_label} (${gender}) in fallback`);
+  res.json(localData.rooms[idx]);
 });
 
 app.delete("/api/admins/rooms/:id", async (req, res) => {
