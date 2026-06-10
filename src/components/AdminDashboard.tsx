@@ -45,6 +45,7 @@ export default function AdminDashboard({
   // Select state for Assign Room
   const [assigningStudentId, setAssigningStudentId] = useState<number | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<string>('');
+  const [assignRoomGenderFilter, setAssignRoomGenderFilter] = useState<'all' | 'male' | 'female'>('all');
 
   // Search, Gender filters inside Students List
   const [studentSearch, setStudentSearch] = useState('');
@@ -1531,6 +1532,7 @@ export default function AdminDashboard({
                           onClick={() => {
                             setAssigningStudentId(st.id);
                             setSelectedRoomId(st.room_id ? String(st.room_id) : '');
+                            setAssignRoomGenderFilter(st.sex || 'all');
                           }}
                         >
                           Assign Unit
@@ -1559,14 +1561,46 @@ export default function AdminDashboard({
                       </span> ({students.find(s => s.id === assigningStudentId)?.sex})
                     </p>
                     
+                    <div className="mb-3">
+                      <label className="form-label font-medium small text-muted d-block mb-1.5">Sort/Filter Rooms by Gender:</label>
+                      <div className="btn-group btn-group-sm w-100 bg-light p-1 rounded border mb-2">
+                        <button 
+                          type="button" 
+                          className={`btn btn-sm rounded fw-bold border-0 ${assignRoomGenderFilter === 'all' ? 'btn-dark text-white' : 'btn-light text-secondary'}`}
+                          onClick={() => setAssignRoomGenderFilter('all')}
+                          style={{ transition: 'all 0.15s' }}
+                        >
+                          🌐 All ({rooms.length})
+                        </button>
+                        <button 
+                          type="button" 
+                          className={`btn btn-sm rounded fw-bold border-0 ${assignRoomGenderFilter === 'male' ? 'btn-dark text-white' : 'btn-light text-secondary'}`}
+                          onClick={() => setAssignRoomGenderFilter('male')}
+                          style={{ transition: 'all 0.15s' }}
+                        >
+                          👦 Male ({rooms.filter(r => r.gender === 'male').length})
+                        </button>
+                        <button 
+                          type="button" 
+                          className={`btn btn-sm rounded fw-bold border-0 ${assignRoomGenderFilter === 'female' ? 'btn-dark text-white' : 'btn-light text-secondary'}`}
+                          onClick={() => setAssignRoomGenderFilter('female')}
+                          style={{ transition: 'all 0.15s' }}
+                        >
+                          👧 Female ({rooms.filter(r => r.gender === 'female').length})
+                        </button>
+                      </div>
+                    </div>
+                    
                     <label className="form-label font-medium small">Choose Available Room (Verification Active)</label>
                     <select className="form-select" value={selectedRoomId} onChange={e => setSelectedRoomId(e.target.value)}>
                       <option value="">-- Choose Space --</option>
-                      {rooms.map(r => (
-                        <option key={r.id} value={r.id}>
-                          {r.room_label} - Designated for: {r.gender.toUpperCase()}s (Current occupancy: {r.current_member_count})
-                        </option>
-                      ))}
+                      {rooms
+                        .filter(r => assignRoomGenderFilter === 'all' || r.gender === assignRoomGenderFilter)
+                        .map(r => (
+                          <option key={r.id} value={r.id}>
+                            {r.room_label} - Designated for: {r.gender.toUpperCase()}s (Current occupancy: {r.current_member_count})
+                          </option>
+                        ))}
                     </select>
 
                     <p className="small text-muted mt-2">
