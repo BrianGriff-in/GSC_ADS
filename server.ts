@@ -555,80 +555,42 @@ app.get("/api/admins/dashboard-summary/:userId", async (req, res) => {
   };
 
   if (!useLocalFallback && pgPool) {
-    let client;
     try {
-      client = await pgPool.connect();
-      
-      const studentsRes = await client.query(`
-        SELECT u.id, u.username, u.is_active, u.created_at,
-               p.first_name, p.last_name, p.date_of_birth, p.place_of_birth,
-               p.university_name, p.email, p.phone_number, p.sex, p.profile_photo, p.move_in_date,
-               p.facebook, p.telegram,
-               p.is_archived, p.archived_at,
-               rm.room_id, r.room_label
-        FROM users u
-        LEFT JOIN student_profiles p ON u.id = p.user_id
-        LEFT JOIN room_members rm ON u.id = rm.student_id
-        LEFT JOIN rooms r ON rm.room_id = r.id
-        WHERE u.role = 'student'
-        ORDER BY u.id DESC
-      `);
-      
-      const roomsRes = await client.query(`
-        SELECT r.id, r.room_label, r.gender, r.created_at,
-               COUNT(rm.id) as current_member_count
-        FROM rooms r
-        LEFT JOIN room_members rm ON r.id = rm.room_id
-        GROUP BY r.id, r.room_label, r.gender, r.created_at
-        ORDER BY r.room_label ASC
-      `);
-      
-      const activeRes = await client.query("SELECT * FROM meeting_sessions WHERE is_active = TRUE");
-      
-      const excusesRes = await client.query(`
-        SELECT la.*, u.username as student_username, p.first_name, p.last_name, s.title as session_title
-        FROM late_absent_requests la
-        INNER JOIN users u ON la.student_id = u.id
-        INNER JOIN student_profiles p ON u.id = p.user_id
-        INNER JOIN attendance a ON la.attendance_id = a.id
-        INNER JOIN meeting_sessions s ON a.session_id = s.id
-        ORDER BY la.submitted_at DESC
-      `);
-      
-      const moveOutsRes = await client.query(`
-        SELECT mo.*, u.username as student_username, p.first_name, p.last_name
-        FROM move_out_requests mo
-        INNER JOIN users u ON mo.student_id = u.id
-        INNER JOIN student_profiles p ON u.id = p.user_id
-        WHERE mo.is_deleted = FALSE
-        ORDER BY mo.submitted_at DESC
-      `);
-      
-      const historyRes = await client.query(`
-        SELECT s.id, s.title, s.started_at, s.ended_at, s.year, s.month,
-               COUNT(CASE WHEN a.status = 'on_time' THEN 1 END) as count_on_time,
-               COUNT(CASE WHEN a.status = 'late' THEN 1 END) as count_late,
-               COUNT(CASE WHEN a.status = 'absent' THEN 1 END) as count_absent
-        FROM meeting_sessions s
-        LEFT JOIN attendance a ON s.id = a.session_id
-        GROUP BY s.id, s.title, s.started_at, s.ended_at, s.year, s.month
-        ORDER BY s.started_at DESC
-      `);
-      
-      const notifRes = await client.query("SELECT * FROM notifications WHERE recipient_id = $1 ORDER BY created_at DESC", [userId]);
-      
-      const absenceRes = await client.query(`
-        SELECT a.student_id, COUNT(a.id) as count
-        FROM attendance a
-        INNER JOIN meeting_sessions s ON a.session_id = s.id
-        WHERE a.status = 'absent' AND EXTRACT(YEAR FROM s.started_at) = EXTRACT(YEAR FROM NOW())
-        GROUP BY a.student_id
-      `);
-
-      let activeSession = null;
-      if (activeRes.rowCount && activeRes.rowCount > 0) {
-        const session = activeRes.rows[0];
-        const rosterRes = await client.query(`
+      const [
+        studentsRes,
+        roomsRes,
+        activeRes,
+        rosterRes,
+        excusesRes,
+        moveOutsRes,
+        historyRes,
+        notifRes,
+        absenceRes
+      ] = await Promise.all([
+        pgPool.query(`
+          SELECT u.id, u.username, u.is_active, u.created_at,
+                 p.first_name, p.last_name, p.date_of_birth, p.place_of_birth,
+                 p.university_name, p.email, p.phone_number, p.sex, p.profile_photo, p.move_in_date,
+                 p.facebook, p.telegram,
+                 p.is_archived, p.archived_at,
+                 rm.room_id, r.room_label
+          FROM users u
+          LEFT JOIN student_profiles p ON u.id = p.user_id
+          LEFT JOIN room_members rm ON u.id = rm.student_id
+          LEFT JOIN rooms r ON rm.room_id = r.id
+          WHERE u.role = 'student'
+          ORDER BY u.id DESC
+        `),
+        pgPool.query(`
+          SELECT r.id, r.room_label, r.gender, r.created_at,
+                 COUNT(rm.id) as current_member_count
+          FROM rooms r
+          LEFT JOIN room_members rm ON r.id = rm.room_id
+          GROUP BY r.id, r.room_label, r.gender, r.created_at
+          ORDER BY r.room_label ASC
+        `),
+        pgPool.query("SELECT * FROM meeting_sessions WHERE is_active = TRUE"),
+        pgPool.query(`
           SELECT a.id as attendance_id, a.status, a.marked_at,
                  u.id as student_id, u.username as student_username, p.sex,
                  p.first_name, p.last_name, r.id as room_id, COALESCE(r.room_label, 'Unassigned 🏠') as room_label
@@ -636,8 +598,48 @@ app.get("/api/admins/dashboard-summary/:userId", async (req, res) => {
           INNER JOIN users u ON a.student_id = u.id
           INNER JOIN student_profiles p ON u.id = p.user_id
           LEFT JOIN rooms r ON a.room_id = r.id
-          WHERE a.session_id = $1
-        `, [session.id]);
+          WHERE a.session_id IN (SELECT id FROM meeting_sessions WHERE is_active = TRUE)
+        `),
+        pgPool.query(`
+          SELECT la.*, u.username as student_username, p.first_name, p.last_name, s.title as session_title
+          FROM late_absent_requests la
+          INNER JOIN users u ON la.student_id = u.id
+          INNER JOIN student_profiles p ON u.id = p.user_id
+          INNER JOIN attendance a ON la.attendance_id = a.id
+          INNER JOIN meeting_sessions s ON a.session_id = s.id
+          ORDER BY la.submitted_at DESC
+        `),
+        pgPool.query(`
+          SELECT mo.*, u.username as student_username, p.first_name, p.last_name
+          FROM move_out_requests mo
+          INNER JOIN users u ON mo.student_id = u.id
+          INNER JOIN student_profiles p ON u.id = p.user_id
+          WHERE mo.is_deleted = FALSE
+          ORDER BY mo.submitted_at DESC
+        `),
+        pgPool.query(`
+          SELECT s.id, s.title, s.started_at, s.ended_at, s.year, s.month,
+                 COUNT(CASE WHEN a.status = 'on_time' THEN 1 END) as count_on_time,
+                 COUNT(CASE WHEN a.status = 'late' THEN 1 END) as count_late,
+                 COUNT(CASE WHEN a.status = 'absent' THEN 1 END) as count_absent
+          FROM meeting_sessions s
+          LEFT JOIN attendance a ON s.id = a.session_id
+          GROUP BY s.id, s.title, s.started_at, s.ended_at, s.year, s.month
+          ORDER BY s.started_at DESC
+        `),
+        pgPool.query("SELECT * FROM notifications WHERE recipient_id = $1 ORDER BY created_at DESC", [userId]),
+        pgPool.query(`
+          SELECT a.student_id, COUNT(a.id) as count
+          FROM attendance a
+          INNER JOIN meeting_sessions s ON a.session_id = s.id
+          WHERE a.status = 'absent' AND EXTRACT(YEAR FROM s.started_at) = EXTRACT(YEAR FROM NOW())
+          GROUP BY a.student_id
+        `)
+      ]);
+
+      let activeSession = null;
+      if (activeRes.rowCount && activeRes.rowCount > 0) {
+        const session = activeRes.rows[0];
         activeSession = { session, roster: rosterRes.rows };
       }
 
@@ -661,8 +663,6 @@ app.get("/api/admins/dashboard-summary/:userId", async (req, res) => {
     } catch (e: any) {
       console.error("Error in PG summary query:", e);
       return res.status(500).json({ error: e.message });
-    } finally {
-      if (client) client.release();
     }
   }
 
@@ -788,28 +788,25 @@ app.get("/api/students/dashboard-summary/:userId", async (req, res) => {
   };
 
   if (!useLocalFallback && pgPool) {
-    let client;
     try {
-      client = await pgPool.connect();
-      
-      const profRes = await client.query(`
-        SELECT p.*, r.room_label
-        FROM student_profiles p
-        LEFT JOIN room_members rm ON p.user_id = rm.student_id
-        LEFT JOIN rooms r ON rm.room_id = r.id
-        WHERE p.user_id = $1
-      `, [userId]);
-      
-      const listRes = await client.query(`
-        SELECT a.id, a.status, a.marked_at, s.title as session_title, s.started_at
-        FROM attendance a
-        INNER JOIN meeting_sessions s ON a.session_id = s.id
-        WHERE a.student_id = $1
-        ORDER BY s.started_at DESC
-      `, [userId]);
-      
-      const moRes = await client.query("SELECT * FROM move_out_requests WHERE student_id = $1 AND is_deleted = FALSE ORDER BY submitted_at DESC", [userId]);
-      const notRes = await client.query("SELECT * FROM notifications WHERE recipient_id = $1 ORDER BY created_at DESC", [userId]);
+      const [profRes, listRes, moRes, notRes] = await Promise.all([
+        pgPool.query(`
+          SELECT p.*, r.room_label
+          FROM student_profiles p
+          LEFT JOIN room_members rm ON p.user_id = rm.student_id
+          LEFT JOIN rooms r ON rm.room_id = r.id
+          WHERE p.user_id = $1
+        `, [userId]),
+        pgPool.query(`
+          SELECT a.id, a.status, a.marked_at, s.title as session_title, s.started_at
+          FROM attendance a
+          INNER JOIN meeting_sessions s ON a.session_id = s.id
+          WHERE a.student_id = $1
+          ORDER BY s.started_at DESC
+        `, [userId]),
+        pgPool.query("SELECT * FROM move_out_requests WHERE student_id = $1 AND is_deleted = FALSE ORDER BY submitted_at DESC", [userId]),
+        pgPool.query("SELECT * FROM notifications WHERE recipient_id = $1 ORDER BY created_at DESC", [userId])
+      ]);
 
       const profile = profRes.rows[0] || { error: "Profile not found" };
       return res.json({
@@ -822,8 +819,6 @@ app.get("/api/students/dashboard-summary/:userId", async (req, res) => {
     } catch (e: any) {
       console.error("Error in student summary query:", e);
       return res.status(500).json({ error: e.message });
-    } finally {
-      if (client) client.release();
     }
   }
 

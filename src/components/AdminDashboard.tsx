@@ -33,6 +33,9 @@ export default function AdminDashboard({
   const [loading, setLoading] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
 
+  const fetchActiveRef = React.useRef(false);
+  const fetchQueueRef = React.useRef(false);
+
   // Forms Input States
   const [newRoomLabel, setNewRoomLabel] = useState('');
   const [newRoomGender, setNewRoomGender] = useState<'male' | 'female'>('male');
@@ -193,6 +196,16 @@ export default function AdminDashboard({
 
   // Fetch all datasets securely
   const fetchAllData = async (silent = false) => {
+    if (fetchActiveRef.current) {
+      if (!silent) {
+        // If a non-silent load was requested, make sure we show loading indicator when we run next
+        fetchQueueRef.current = true;
+      } else if (fetchQueueRef.current !== true) {
+        fetchQueueRef.current = 'silent';
+      }
+      return;
+    }
+    fetchActiveRef.current = true;
     if (!silent) setLoading(true);
     try {
       const res = await fetch(`/api/admins/dashboard-summary/${userId}`);
@@ -215,6 +228,13 @@ export default function AdminDashboard({
     } finally {
       if (!silent) setLoading(false);
       setIsFirstLoad(false);
+      fetchActiveRef.current = false;
+      
+      if (fetchQueueRef.current) {
+        const nextSilent = fetchQueueRef.current === 'silent';
+        fetchQueueRef.current = false;
+        fetchAllData(nextSilent);
+      }
     }
   };
 
