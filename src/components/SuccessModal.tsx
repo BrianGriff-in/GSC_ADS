@@ -18,7 +18,7 @@ export default function SuccessModal({
   if (!isOpen) return null;
 
   return (
-    <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: 'rgba(15, 23, 42, 0.45)', zIndex: 1070 }}>
+    <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: 'rgba(15, 23, 42, 0.45)', zIndex: 1600 }}>
       <div className="modal-dialog modal-dialog-centered">
         <div className="modal-content border border-emerald-300 shadow-lg" style={{ borderRadius: '0px' }}>
           <div className="modal-header border-bottom border-emerald-100 bg-emerald-50/50 p-3">

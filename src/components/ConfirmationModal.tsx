@@ -22,7 +22,7 @@ export default function ConfirmationModal({
   if (!isOpen) return null;
 
   return (
-    <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: 'rgba(15, 23, 42, 0.45)', zIndex: 1060 }}>
+    <div className="modal show d-block" tabIndex={-1} style={{ backgroundColor: 'rgba(15, 23, 42, 0.45)', zIndex: 1500 }}>
       <div className="modal-dialog modal-dialog-centered">
         <div className="modal-content border border-slate-300 shadow-lg" style={{ borderRadius: '0px' }}>
           <div className="modal-header border-bottom border-slate-100 bg-light p-3">

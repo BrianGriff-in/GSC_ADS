@@ -60,6 +60,10 @@ export default function AdminDashboard({
   const [successModalTitle, setSuccessModalTitle] = useState('');
   const [successModalMessage, setSuccessModalMessage] = useState('');
 
+  // Batch attendance marking states
+  const [pendingAttendanceChanges, setPendingAttendanceChanges] = useState<Record<number, { targetStatus: string; studName: string; studentId: number; origStatus: string }>>({});
+  const [showSummerizeModal, setShowSummerizeModal] = useState(false);
+
   const triggerSuccess = (title: string, message: string) => {
     setSuccessModalTitle(title);
     setSuccessModalMessage(message);
@@ -686,77 +690,38 @@ export default function AdminDashboard({
     );
   };
 
-  // Mark Present - Instantly runs without blocking prompts & utilizes instant optimistic UI updates
-  const handleMarkPresent = (attId: number, studName: string) => {
-    // 1. Optimistic Update
-    if (activeSession && activeSession.roster) {
-      setActiveSession((prev: any) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          roster: prev.roster.map((r: any) => 
-            r.attendance_id === attId 
-              ? { ...r, status: 'on_time', marked_at: new Date().toISOString() } 
-              : r
-          )
-        };
-      });
+  // Mark Present - Pushes to pending queue for admin review and batch submission
+  const handleMarkPresent = (attId: number, studName: string, studentId: number, originalStatus: string) => {
+    // Calculate default timing status based on meeting start time (15 mins threshold)
+    let targetStatus = 'on_time';
+    if (activeSession && activeSession.session && activeSession.session.started_at) {
+      const startedAt = new Date(activeSession.session.started_at);
+      const diffMs = new Date().getTime() - startedAt.getTime();
+      const diffMins = diffMs / (1000 * 60);
+      targetStatus = diffMins <= 15 ? 'on_time' : 'late';
     }
 
-    // 2. Async Sync
-    fetch("/api/admins/attendance/mark-present", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        attendance_id: attId,
-        admin_id: userId,
-        admin_name: username
-      })
-    })
-    .then(res => res.json())
-    .then(data => {
-      // Background silent-sync to guarantee consistent counters/details
-      fetchAllData(true);
-    })
-    .catch(err => {
-      console.error("Async check-in failed:", err);
+    setPendingAttendanceChanges(prev => {
+      const copy = { ...prev };
+      if (targetStatus === originalStatus) {
+        delete copy[attId];
+      } else {
+        copy[attId] = { targetStatus, studName, studentId, origStatus: originalStatus };
+      }
+      return copy;
     });
   };
 
-  // Override attendance (Edit/Undo action) - Instantly mutates state optimistically
-  const handleOverrideAttendance = (attId: number, targetStatus: string, studName: string) => {
-    // 1. Optimistic Update
-    if (activeSession && activeSession.roster) {
-      setActiveSession((prev: any) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          roster: prev.roster.map((r: any) => 
-            r.attendance_id === attId 
-              ? { ...r, status: targetStatus, marked_at: new Date().toISOString() } 
-              : r
-          )
-        };
-      });
-    }
-
-    // 2. Async Sync
-    fetch("/api/admins/attendance/override", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        attendance_id: attId,
-        target_status: targetStatus,
-        admin_id: userId,
-        admin_name: username
-      })
-    })
-    .then(res => res.json())
-    .then(() => {
-      fetchAllData(true);
-    })
-    .catch(err => {
-      console.error("Async override failed:", err);
+  // Override attendance - Pushes to pending queue for admin review and batch submission
+  const handleOverrideAttendance = (attId: number, targetStatus: string, studName: string, studentId: number, originalStatus: string) => {
+    setPendingAttendanceChanges(prev => {
+      const copy = { ...prev };
+      if (targetStatus === originalStatus) {
+        delete copy[attId];
+      } else {
+        copy[attId] = { targetStatus, studName, studentId, origStatus: originalStatus };
+      }
+      return copy;
     });
   };
 
@@ -1022,9 +987,13 @@ export default function AdminDashboard({
     return 0;
   });
 
-  const activeStatsOnTime = activeSessionRoster.filter((st: any) => st.status === 'on_time').length;
-  const activeStatsLate = activeSessionRoster.filter((st: any) => st.status === 'late').length;
-  const activeStatsAbsent = activeSessionRoster.filter((st: any) => st.status === 'absent').length;
+  const getStudentStatus = (attendanceId: number, originalStatus: string) => {
+    return pendingAttendanceChanges[attendanceId]?.targetStatus || originalStatus;
+  };
+
+  const activeStatsOnTime = activeSessionRoster.filter((st: any) => getStudentStatus(st.attendance_id, st.status) === 'on_time').length;
+  const activeStatsLate = activeSessionRoster.filter((st: any) => getStudentStatus(st.attendance_id, st.status) === 'late').length;
+  const activeStatsAbsent = activeSessionRoster.filter((st: any) => getStudentStatus(st.attendance_id, st.status) === 'absent').length;
 
   // Notification count
   const unreadNotifs = notifications.filter(n => !n.is_read);
@@ -1234,6 +1203,43 @@ export default function AdminDashboard({
                     </div>
                   </div>
 
+                  {/* Pending attendance shifts review and submit bar as requested */}
+                  {Object.keys(pendingAttendanceChanges).length > 0 && (
+                    <div className="alert bg-warning-subtle border-warning border-2 rounded-3 shadow-xs p-3 mb-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+                      <div className="d-flex align-items-center gap-3">
+                        <span className="fs-3">⏳</span>
+                        <div>
+                          <h6 className="fw-bold text-dark mb-1">Unsaved Attendance Marks</h6>
+                          <p className="text-secondary small mb-0">
+                            You have <strong>{Object.keys(pendingAttendanceChanges).length}</strong> unsaved student attendance modifications.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="d-flex gap-2">
+                        <button 
+                          className="btn btn-warning btn-sm fw-bold px-3 text-dark d-flex align-items-center gap-1"
+                          onClick={() => setShowSummerizeModal(true)}
+                        >
+                          📋 Review & Summarize ({Object.keys(pendingAttendanceChanges).length})
+                        </button>
+                        <button
+                          className="btn btn-outline-secondary btn-sm"
+                          onClick={() => {
+                            triggerConfirm(
+                              "Discard Draft Marks",
+                              `Are you sure you want to discard all ${Object.keys(pendingAttendanceChanges).length} unsaved attendance modifications?`,
+                              () => {
+                                setPendingAttendanceChanges({});
+                              }
+                            );
+                          }}
+                        >
+                          Discard
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Gender separation tabs inside Active Roster as requested layout */}
                   <div className="d-flex align-items-center justify-content-between mb-3 border-bottom pb-2">
                     <h6 className="fw-bold mb-0 text-secondary">Roster Grid</h6>
@@ -1290,33 +1296,40 @@ export default function AdminDashboard({
                       {activeSessionFiltered.map((st: any) => {
                         const absentCount = studentsAbsenceHistory[st.student_id] || 0;
                         const hasRedAlert = absentCount >= 3;
+                        const currentStatus = getStudentStatus(st.attendance_id, st.status);
+                        const isModified = !!pendingAttendanceChanges[st.attendance_id];
                         return (
                           <div className="col-md-6" key={st.student_id}>
-                            <div className={`card ${hasRedAlert ? 'border-danger border-2 bg-danger-subtle' : 'bg-light'} p-3 rounded-3 shadow-xs h-100`}>
+                            <div className={`card ${hasRedAlert ? 'border-danger border-2 bg-danger-subtle' : 'bg-light'} p-3 rounded-3 shadow-xs h-100 ${isModified ? 'border-warning border-2' : ''}`}>
                               <div className="d-flex justify-content-between align-items-start mb-2">
                                 <div>
                                   <h6 className="fw-bold mb-0 text-dark">
                                     {st.student_username} - {st.first_name || 'Incomplete Profile'} {st.last_name || ''}
                                   </h6>
-                                  <span className="badge bg-secondary font-monospace small">{st.room_label}</span>
-                                  {hasRedAlert && (
-                                    <span className="badge bg-danger ms-1 fw-bold text-white">⚠️ READY TO BE FIRED ({absentCount} abs)</span>
-                                  )}
+                                  <div className="d-flex align-items-center gap-1 mt-1">
+                                    <span className="badge bg-secondary font-monospace small">{st.room_label}</span>
+                                    {hasRedAlert && (
+                                      <span className="badge bg-danger fw-bold text-white">⚠️ READY TO BE FIRED ({absentCount} abs)</span>
+                                    )}
+                                    {isModified && (
+                                      <span className="badge bg-warning text-dark font-monospace fw-bold">⏳ UNSAVED LOG</span>
+                                    )}
+                                  </div>
                                 </div>
                                 <span className={`badge ${
-                                  st.status === 'on_time' ? 'bg-success text-white' :
-                                  st.status === 'late' ? 'bg-warning text-dark' :
+                                  currentStatus === 'on_time' ? 'bg-success text-white' :
+                                  currentStatus === 'late' ? 'bg-warning text-dark' :
                                   'bg-danger text-white'
                                 }`}>
-                                  {st.status.toUpperCase()}
+                                  {currentStatus.toUpperCase()}
                                 </span>
                               </div>
-
+ 
                               <div className="d-flex flex-wrap gap-2 mt-2 pt-2 border-top">
-                                {st.status === 'absent' ? (
+                                {currentStatus === 'absent' ? (
                                   <button 
                                     className="btn btn-success btn-sm w-100 fw-bold"
-                                    onClick={() => handleMarkPresent(st.attendance_id, st.student_username)}
+                                    onClick={() => handleMarkPresent(st.attendance_id, st.student_username, st.student_id, st.status)}
                                   >
                                     🔔 Mark Present
                                   </button>
@@ -1324,21 +1337,21 @@ export default function AdminDashboard({
                                   <div className="btn-group btn-group-sm w-100">
                                     <button 
                                       className="btn btn-outline-success fw-bold"
-                                      disabled={st.status === 'on_time'}
-                                      onClick={() => handleOverrideAttendance(st.attendance_id, 'on_time', st.student_username)}
+                                      disabled={currentStatus === 'on_time'}
+                                      onClick={() => handleOverrideAttendance(st.attendance_id, 'on_time', st.student_username, st.student_id, st.status)}
                                     >
                                       On-Time
                                     </button>
                                     <button 
                                       className="btn btn-outline-warning fw-bold text-dark"
-                                      disabled={st.status === 'late'}
-                                      onClick={() => handleOverrideAttendance(st.attendance_id, 'late', st.student_username)}
+                                      disabled={currentStatus === 'late'}
+                                      onClick={() => handleOverrideAttendance(st.attendance_id, 'late', st.student_username, st.student_id, st.status)}
                                     >
                                       Late
                                     </button>
                                     <button 
                                       className="btn btn-outline-danger fw-bold"
-                                      onClick={() => handleOverrideAttendance(st.attendance_id, 'absent', st.student_username)}
+                                      onClick={() => handleOverrideAttendance(st.attendance_id, 'absent', st.student_username, st.student_id, st.status)}
                                     >
                                       Undo/Absent
                                     </button>
@@ -2084,6 +2097,131 @@ export default function AdminDashboard({
         message={successModalMessage}
         onClose={() => setSuccessModalOpen(false)}
       />
+
+      {/* --- REVIEW & SUMMARIZE ATTENDANCE MODAL --- */}
+      {showSummerizeModal && (
+        <div className="modal fade show d-block" tabIndex={-1} style={{ background: "rgba(0,0,0,0.6)", zIndex: 1100 }}>
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content border-warning border-2 rounded-3 shadow">
+              <div className="modal-header bg-warning text-dark">
+                <h5 className="modal-title fw-bold">
+                  📋 Review & Submit Attendance Marks
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setShowSummerizeModal(false)}></button>
+              </div>
+              <div className="modal-body p-4 text-start" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                <p className="text-secondary small mb-3">
+                  Please confirm the following modifications before submitting. Submitting will update the official database records in a single rapid batch operation.
+                </p>
+
+                <div className="table-responsive">
+                  <table className="table table-bordered table-striped align-middle font-monospace small">
+                    <thead className="table-light">
+                      <tr>
+                        <th>Student Name</th>
+                        <th className="text-center">Original Mark</th>
+                        <th className="text-center">New Pending Mark</th>
+                        <th className="text-center font-bold">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(pendingAttendanceChanges).map(([attId, change]: [string, any]) => {
+                        const originalBadge = change.origStatus === 'on_time' ? 'bg-success text-white' : change.origStatus === 'late' ? 'bg-warning text-dark' : 'bg-danger text-white';
+                        const targetBadge = change.targetStatus === 'on_time' ? 'bg-success text-white' : change.targetStatus === 'late' ? 'bg-warning text-dark' : 'bg-danger text-white';
+                        return (
+                          <tr key={attId}>
+                            <td className="fw-bold">{change.studName}</td>
+                            <td className="text-center">
+                              <span className={`badge ${originalBadge}`}>
+                                {change.origStatus.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="text-center">
+                              <span className={`badge ${targetBadge}`}>
+                                {change.targetStatus.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="text-center">
+                              <span className="text-warning fw-bold">➡️ Update</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="modal-footer bg-light justify-content-between">
+                <button 
+                  type="button" 
+                  className="btn btn-outline-secondary btn-sm fw-bold" 
+                  onClick={() => setShowSummerizeModal(false)}
+                >
+                  Cancel & Keep Drafting
+                </button>
+                <div className="d-flex gap-2">
+                  <button 
+                    type="button"
+                    className="btn btn-outline-danger btn-sm"
+                    onClick={() => {
+                      triggerConfirm(
+                        "Discard Draft Changes",
+                        `Are you sure you want to cancel and clear all ${Object.keys(pendingAttendanceChanges).length} pending modifications?`,
+                        () => {
+                          setPendingAttendanceChanges({});
+                          setShowSummerizeModal(false);
+                        }
+                      );
+                    }}
+                  >
+                    Discard Changes
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-warning btn-sm fw-bold text-dark px-4"
+                    onClick={() => {
+                      const updatesList = Object.entries(pendingAttendanceChanges).map(([attId, change]: [string, any]) => ({
+                        attendance_id: parseInt(attId),
+                        target_status: change.targetStatus
+                      }));
+                      triggerConfirm(
+                        "Submit Batch Attendance",
+                        `Are you sure you want to commit these ${updatesList.length} attendance updates to the database?`,
+                        async () => {
+                          setSubmitting(true);
+                          setShowSummerizeModal(false);
+                          try {
+                            const res = await fetch("/api/admins/attendance/batch-update", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                updates: updatesList,
+                                admin_id: userId,
+                                admin_name: username
+                              })
+                            });
+                            if (!res.ok) throw new Error("Batch update request failed");
+                            
+                            setPendingAttendanceChanges({});
+                            triggerSuccess("Status Saved Successfully", `A batch of ${updatesList.length} attendance marks has been stored and archived inside the cloud server successfully.`);
+                            await fetchAllData();
+                          } catch (err: any) {
+                            alert("Error submitting changes: " + err.message);
+                          } finally {
+                            setSubmitting(false);
+                          }
+                        }
+                      );
+                    }}
+                  >
+                    Confirm & Submit Batch
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- GENDER MISMATCH popup MODAL --- */}
       {genderMismatchOpen && (

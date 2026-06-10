@@ -1787,6 +1787,86 @@ app.post("/api/admins/attendance/override", async (req, res) => {
   res.json({ success: true, status: target_status.toLowerCase() });
 });
 
+// Batch update attendance status in one round-trip (Instant processing)
+app.post("/api/admins/attendance/batch-update", async (req, res) => {
+  const { updates, admin_id, admin_name } = req.body;
+  if (!Array.isArray(updates)) return res.status(400).json({ error: "Missing array of updates" });
+
+  const editTime = new Date();
+
+  if (!useLocalFallback && pgPool) {
+    let client;
+    try {
+      client = await pgPool.connect();
+      await client.query("BEGIN");
+      for (const update of updates) {
+        const { attendance_id, target_status } = update;
+        
+        // Get original details for audit logs
+        const origRes = await client.query(`
+          SELECT a.status, u.username 
+          FROM attendance a
+          INNER JOIN users u ON a.student_id = u.id
+          WHERE a.id = $1
+        `, [attendance_id]);
+
+        await client.query(`
+          UPDATE attendance SET
+            status = $1,
+            marked_at = $2,
+            last_edited_by = $3,
+            last_edited_at = $2
+          WHERE id = $4
+        `, [target_status.toLowerCase(), editTime, admin_id, attendance_id]);
+
+        if (origRes.rowCount) {
+          await writeAuditLog(
+            admin_id,
+            "BATCH_OVERRIDE_ATTENDANCE",
+            "attendance",
+            attendance_id,
+            `Admin ${admin_name} changed attendance mark for ${origRes.rows[0].username} from '${origRes.rows[0].status}' to '${target_status}'`
+          );
+        }
+      }
+      await client.query("COMMIT");
+      return res.json({ success: true, count: updates.length });
+    } catch (e: any) {
+      if (client) await client.query("ROLLBACK");
+      return res.status(500).json({ error: e.message });
+    } finally {
+      if (client) client.release();
+    }
+  }
+
+  // Fallback override
+  try {
+    for (const update of updates) {
+      const { attendance_id, target_status } = update;
+      const att = localData.attendance.find(a => a.id === attendance_id);
+      if (att) {
+        const prevStatus = att.status;
+        att.status = target_status.toLowerCase();
+        att.last_edited_by = admin_id;
+        att.last_edited_at = editTime.toISOString();
+
+        const stud = localData.users.find(u => u.id === att.student_id);
+        await writeAuditLog(
+          admin_id,
+          "BATCH_OVERRIDE_ATTENDANCE",
+          "attendance",
+          attendance_id,
+          `Admin ${admin_name} changed attendance mark for '${stud ? stud.username : 'ST'}' from '${prevStatus}' to '${target_status}'`
+        );
+      }
+    }
+    saveLocalData();
+    res.json({ success: true, count: updates.length });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // End Active session manually
 app.post("/api/admins/sessions/end", async (req, res) => {
   const { session_id, admin_id, admin_name } = req.body;
