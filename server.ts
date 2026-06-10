@@ -529,6 +529,373 @@ app.get("/api/system/db-status", (req, res) => {
   });
 });
 
+// --- ULTRA FAST CONSOLIDATED SUMMARY APIs ---
+app.get("/api/admins/dashboard-summary/:userId", async (req, res) => {
+  const userId = parseInt(req.params.userId) || 0;
+  const dbMode = {
+    mode: useLocalFallback ? "Local SQLite-like File Fallback" : "Supabase Cloud PostgreSQL Connection Active",
+    filePath: useLocalFallback ? FALLBACK_FILE : null
+  };
+
+  if (!useLocalFallback && pgPool) {
+    try {
+      const [
+        studentsRes,
+        roomsRes,
+        activeRes,
+        excusesRes,
+        moveOutsRes,
+        historyRes,
+        notifRes,
+        absenceRes
+      ] = await Promise.all([
+        pgPool.query(`
+          SELECT u.id, u.username, u.is_active, u.created_at,
+                 p.first_name, p.last_name, p.date_of_birth, p.place_of_birth,
+                 p.university_name, p.email, p.phone_number, p.sex, p.profile_photo, p.move_in_date,
+                 p.facebook, p.telegram,
+                 p.is_archived, p.archived_at,
+                 rm.room_id, r.room_label
+          FROM users u
+          LEFT JOIN student_profiles p ON u.id = p.user_id
+          LEFT JOIN room_members rm ON u.id = rm.student_id
+          LEFT JOIN rooms r ON rm.room_id = r.id
+          WHERE u.role = 'student'
+          ORDER BY u.id DESC
+        `),
+        pgPool.query(`
+          SELECT r.id, r.room_label, r.gender, r.created_at,
+                 COUNT(rm.id) as current_member_count
+          FROM rooms r
+          LEFT JOIN room_members rm ON r.id = rm.room_id
+          GROUP BY r.id, r.room_label, r.gender, r.created_at
+          ORDER BY r.room_label ASC
+        `),
+        pgPool.query("SELECT * FROM meeting_sessions WHERE is_active = TRUE"),
+        pgPool.query(`
+          SELECT la.*, u.username as student_username, p.first_name, p.last_name, s.title as session_title
+          FROM late_absent_requests la
+          INNER JOIN users u ON la.student_id = u.id
+          INNER JOIN student_profiles p ON u.id = p.user_id
+          INNER JOIN attendance a ON la.attendance_id = a.id
+          INNER JOIN meeting_sessions s ON a.session_id = s.id
+          ORDER BY la.submitted_at DESC
+        `),
+        pgPool.query(`
+          SELECT mo.*, u.username as student_username, p.first_name, p.last_name
+          FROM move_out_requests mo
+          INNER JOIN users u ON mo.student_id = u.id
+          INNER JOIN student_profiles p ON u.id = p.user_id
+          WHERE mo.is_deleted = FALSE
+          ORDER BY mo.submitted_at DESC
+        `),
+        pgPool.query(`
+          SELECT s.id, s.title, s.started_at, s.ended_at, s.year, s.month,
+                 COUNT(CASE WHEN a.status = 'on_time' THEN 1 END) as count_on_time,
+                 COUNT(CASE WHEN a.status = 'late' THEN 1 END) as count_late,
+                 COUNT(CASE WHEN a.status = 'absent' THEN 1 END) as count_absent
+          FROM meeting_sessions s
+          LEFT JOIN attendance a ON s.id = a.session_id
+          GROUP BY s.id, s.title, s.started_at, s.ended_at, s.year, s.month
+          ORDER BY s.started_at DESC
+        `),
+        pgPool.query("SELECT * FROM notifications WHERE recipient_id = $1 ORDER BY created_at DESC", [userId]),
+        pgPool.query(`
+          SELECT a.student_id, COUNT(a.id) as count
+          FROM attendance a
+          INNER JOIN meeting_sessions s ON a.session_id = s.id
+          WHERE a.status = 'absent' AND EXTRACT(YEAR FROM s.started_at) = EXTRACT(YEAR FROM NOW())
+          GROUP BY a.student_id
+        `)
+      ]);
+
+      let activeSession = null;
+      if (activeRes.rowCount && activeRes.rowCount > 0) {
+        const session = activeRes.rows[0];
+        const rosterRes = await pgPool.query(`
+          SELECT a.id as attendance_id, a.status, a.marked_at,
+                 u.id as student_id, u.username as student_username, p.sex,
+                 p.first_name, p.last_name, r.id as room_id, COALESCE(r.room_label, 'Unassigned 🏠') as room_label
+          FROM attendance a
+          INNER JOIN users u ON a.student_id = u.id
+          INNER JOIN student_profiles p ON u.id = p.user_id
+          LEFT JOIN rooms r ON a.room_id = r.id
+          WHERE a.session_id = $1
+        `, [session.id]);
+        activeSession = { session, roster: rosterRes.rows };
+      }
+
+      const studentsAbsenceHistory: Record<number, number> = {};
+      absenceRes.rows.forEach(row => {
+        studentsAbsenceHistory[row.student_id] = parseInt(row.count) || 0;
+      });
+
+      return res.json({
+        dbMode,
+        students: studentsRes.rows,
+        rooms: roomsRes.rows,
+        activeSession,
+        excuses: excusesRes.rows,
+        moveOuts: moveOutsRes.rows,
+        historySessions: historyRes.rows,
+        notifications: notifRes.rows,
+        studentsAbsenceHistory
+      });
+
+    } catch (e: any) {
+      console.error("Error in PG summary query:", e);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // FALLBACK
+  try {
+    const students = localData.users.filter(u => u.role === "student").map(u => {
+      const p = localData.student_profiles.find(sp => sp.user_id === u.id) || {};
+      const rm = localData.room_members.find(m => m.student_id === u.id);
+      const r = rm ? localData.rooms.find(ro => ro.id === rm.room_id) : null;
+      return {
+        ...u,
+        ...p,
+        id: u.id,
+        room_id: rm ? rm.room_id : null,
+        room_label: r ? r.room_label : null
+      };
+    });
+
+    const rooms = localData.rooms.map(r => {
+      const count = localData.room_members.filter(rm => rm.room_id === r.id).length;
+      return { ...r, current_member_count: count };
+    });
+
+    let activeSession = null;
+    const activeSess = localData.meeting_sessions.find(s => s.is_active);
+    if (activeSess) {
+      const roster = localData.attendance.filter(a => a.session_id === activeSess.id).map(a => {
+        const u = localData.users.find(us => us.id === a.student_id);
+        const p = localData.student_profiles.find(pr => pr.user_id === a.student_id);
+        const r = localData.rooms.find(ro => ro.id === a.room_id);
+        return {
+          attendance_id: a.id,
+          status: a.status,
+          marked_at: a.marked_at,
+          student_id: a.student_id,
+          student_username: u ? u.username : "ST",
+          first_name: p ? p.first_name : "",
+          last_name: p ? p.last_name : "",
+          sex: p ? p.sex : "male",
+          room_id: a.room_id,
+          room_label: r ? r.room_label : "Unassigned 🏠"
+        };
+      });
+      activeSession = { session: activeSess, roster };
+    }
+
+    const excuses = localData.late_absent_requests.map(la => {
+      const u = localData.users.find(us => us.id === la.student_id);
+      const p = localData.student_profiles.find(pr => pr.user_id === la.student_id);
+      const att = localData.attendance.find(a => a.id === la.attendance_id);
+      const sess = att ? localData.meeting_sessions.find(s => s.id === att.session_id) : null;
+      return {
+        ...la,
+        student_username: u ? u.username : "ST",
+        first_name: p ? p.first_name : "",
+        last_name: p ? p.last_name : "",
+        session_title: sess ? sess.title : "Monthly meeting"
+      };
+    }).sort((a,b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+
+    const moveOuts = localData.move_out_requests.filter(mo => !mo.is_deleted).map(mo => {
+      const u = localData.users.find(us => us.id === mo.student_id);
+      const p = localData.student_profiles.find(pr => pr.user_id === mo.student_id);
+      return {
+        ...mo,
+        student_username: u ? u.username : "ST",
+        first_name: p ? p.first_name : "",
+        last_name: p ? p.last_name : ""
+      };
+    }).sort((a,b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+
+    const historySessions = localData.meeting_sessions.map(s => {
+      const atts = localData.attendance.filter(a => a.session_id === s.id);
+      return {
+        id: s.id,
+        title: s.title,
+        started_at: s.started_at,
+        ended_at: s.ended_at,
+        year: s.year,
+        month: s.month,
+        count_on_time: atts.filter(a => a.status === 'on_time').length,
+        count_late: atts.filter(a => a.status === 'late').length,
+        count_absent: atts.filter(a => a.status === 'absent').length,
+      };
+    }).sort((a,b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
+
+    const notifications = localData.notifications.filter(n => n.recipient_id === userId);
+
+    const studentsAbsenceHistory: Record<number, number> = {};
+    const currentYear = new Date().getFullYear();
+    localData.attendance.forEach(a => {
+      if (a.status !== 'absent') return;
+      const s = localData.meeting_sessions.find(ms => ms.id === a.session_id);
+      if (s && s.started_at) {
+        const d = new Date(s.started_at);
+        if (d.getFullYear() === currentYear) {
+          studentsAbsenceHistory[a.student_id] = (studentsAbsenceHistory[a.student_id] || 0) + 1;
+        }
+      }
+    });
+
+    return res.json({
+      dbMode,
+      students,
+      rooms,
+      activeSession,
+      excuses,
+      moveOuts,
+      historySessions,
+      notifications,
+      studentsAbsenceHistory
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/students/dashboard-summary/:userId", async (req, res) => {
+  const userId = parseInt(req.params.userId) || 0;
+  const dbMode = {
+    mode: useLocalFallback ? "Local SQLite-like File Fallback" : "Supabase Cloud PostgreSQL Connection Active",
+    filePath: useLocalFallback ? FALLBACK_FILE : null
+  };
+
+  if (!useLocalFallback && pgPool) {
+    try {
+      const [profRes, listRes, moRes, notRes] = await Promise.all([
+        pgPool.query(`
+          SELECT p.*, r.room_label
+          FROM student_profiles p
+          LEFT JOIN room_members rm ON p.user_id = rm.student_id
+          LEFT JOIN rooms r ON rm.room_id = r.id
+          WHERE p.user_id = $1
+        `, [userId]),
+        pgPool.query(`
+          SELECT a.id, a.status, a.marked_at, s.title as session_title, s.started_at
+          FROM attendance a
+          INNER JOIN meeting_sessions s ON a.session_id = s.id
+          WHERE a.student_id = $1
+          ORDER BY s.started_at DESC
+        `, [userId]),
+        pgPool.query("SELECT * FROM move_out_requests WHERE student_id = $1 AND is_deleted = FALSE ORDER BY submitted_at DESC", [userId]),
+        pgPool.query("SELECT * FROM notifications WHERE recipient_id = $1 ORDER BY created_at DESC", [userId])
+      ]);
+
+      const profile = profRes.rows[0] || { error: "Profile not found" };
+      return res.json({
+        dbMode,
+        profile,
+        attendanceList: listRes.rows,
+        moveOuts: moRes.rows,
+        notifications: notRes.rows
+      });
+    } catch (e: any) {
+      console.error("Error in student summary query:", e);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // FALLBACK
+  try {
+    const p = localData.student_profiles.find(pr => pr.user_id === userId);
+    let profile = null;
+    if (p) {
+      const rm = localData.room_members.find(m => m.student_id === userId);
+      const r = rm ? localData.rooms.find(ro => ro.id === rm.room_id) : null;
+      profile = {
+        ...p,
+        room_label: r ? r.room_label : null
+      };
+    } else {
+      profile = { error: "Profile not found" };
+    }
+
+    const attendanceList = localData.attendance.filter(a => a.student_id === userId).map(a => {
+      const s = localData.meeting_sessions.find(ms => ms.id === a.session_id);
+      return {
+        id: a.id,
+        status: a.status,
+        marked_at: a.marked_at,
+        session_title: s ? s.title : "Meeting Session",
+        started_at: s ? s.started_at : new Date().toISOString()
+      };
+    }).sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
+
+    const moveOuts = localData.move_out_requests.filter(mo => mo.student_id === userId && !mo.is_deleted)
+      .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+
+    const notifications = localData.notifications.filter(n => n.recipient_id === userId);
+
+    return res.json({
+      dbMode,
+      profile,
+      attendanceList,
+      moveOuts,
+      notifications
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/superadmin/dashboard-summary", async (req, res) => {
+  const dbMode = {
+    mode: useLocalFallback ? "Local SQLite-like File Fallback" : "Supabase Cloud PostgreSQL Connection Active",
+    filePath: useLocalFallback ? FALLBACK_FILE : null
+  };
+
+  if (!useLocalFallback && pgPool) {
+    try {
+      const [adminRes, logsRes] = await Promise.all([
+        pgPool.query("SELECT id, username, role, is_active, created_at FROM users WHERE role = 'admin' ORDER BY id DESC"),
+        pgPool.query(`
+          SELECT al.*, u.username as performed_by_name
+          FROM audit_logs al
+          INNER JOIN users u ON al.performed_by = u.id
+          ORDER BY al.performed_at DESC
+        `)
+      ]);
+      return res.json({
+        dbMode,
+        admins: adminRes.rows,
+        auditLogs: logsRes.rows
+      });
+    } catch (e: any) {
+      console.error("Error in superadmin PG summary:", e);
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // FALLBACK
+  try {
+    const admins = localData.users.filter(u => u.role === "admin");
+    const auditLogs = localData.audit_logs.map(log => {
+      const u = localData.users.find(us => us.id === log.performed_by);
+      return {
+        ...log,
+        performed_by_name: u ? u.username : `ID: ${log.performed_by}`
+      };
+    }).sort((a,b) => new Date(b.performed_at).getTime() - new Date(a.performed_at).getTime());
+
+    return res.json({
+      dbMode,
+      admins,
+      auditLogs
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
 // --- SUPERADMIN ENDPOINTS (CRUD ADMIN ACCOUNTS) ---
 app.get("/api/superadmin/admins", (req, res) => {
   if (!useLocalFallback && pgPool) {

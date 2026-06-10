@@ -69,41 +69,31 @@ export default function StudentDashboard({
   const fetchStudentData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [dbRes, profRes, listRes, moRes, notRes] = await Promise.all([
-        fetch("/api/system/db-status"),
-        fetch(`/api/students/profile/${userId}`),
-        fetch(`/api/students/attendance/${userId}`),
-        fetch(`/api/students/requests/moveout/${userId}`),
-        fetch(`/api/notifications/${userId}`)
-      ]);
+      const res = await fetch(`/api/students/dashboard-summary/${userId}`);
+      const data = await res.json();
 
-      const [dbData, profData, listData, moData, notData] = await Promise.all([
-        dbRes.json(),
-        profRes.json(),
-        listRes.json(),
-        moRes.json(),
-        notRes.json()
-      ]);
+      if (data && !data.error) {
+        setDbMode(data.dbMode.mode);
 
-      setDbMode(dbData.mode);
+        const profData = data.profile;
+        if (profData && !profData.error) {
+          setProfile(profData);
+          setFirstName(profData.first_name || '');
+          setLastName(profData.last_name || '');
+          setDob(profData.date_of_birth ? profData.date_of_birth.substring(0, 10) : '');
+          setPlaceOfBirth(profData.place_of_birth || '');
+          setUniversity(profData.university_name || '');
+          setEmail(profData.email || '');
+          setPhone(profData.phone_number || '');
+          setFacebook(profData.facebook || '');
+          setTelegram(profData.telegram || '');
+          setPhotoBase64(profData.profile_photo || null);
+        }
 
-      if (!profData.error) {
-        setProfile(profData);
-        setFirstName(profData.first_name || '');
-        setLastName(profData.last_name || '');
-        setDob(profData.date_of_birth ? profData.date_of_birth.substring(0, 10) : '');
-        setPlaceOfBirth(profData.place_of_birth || '');
-        setUniversity(profData.university_name || '');
-        setEmail(profData.email || '');
-        setPhone(profData.phone_number || '');
-        setFacebook(profData.facebook || '');
-        setTelegram(profData.telegram || '');
-        setPhotoBase64(profData.profile_photo || null);
+        setAttendanceList(data.attendanceList || []);
+        setMoveOuts(data.moveOuts || []);
+        setNotifications(data.notifications || []);
       }
-
-      setAttendanceList(listData);
-      setMoveOuts(moData);
-      setNotifications(notData);
 
     } catch (e) {
       console.error(e);

@@ -41,21 +41,14 @@ export default function SuperadminDashboard({
   const fetchData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [adminRes, logsRes, dbRes] = await Promise.all([
-        fetch("/api/superadmin/admins"),
-        fetch("/api/audit-logs"),
-        fetch("/api/system/db-status")
-      ]);
+      const res = await fetch("/api/superadmin/dashboard-summary");
+      const data = await res.json();
 
-      const [adminData, logsData, dbData] = await Promise.all([
-        adminRes.json(),
-        logsRes.json(),
-        dbRes.json()
-      ]);
-
-      setAdmins(adminData);
-      setAuditLogs(logsData);
-      setDbMode(dbData.mode);
+      if (data && !data.error) {
+        setAdmins(data.admins || []);
+        setAuditLogs(data.auditLogs || []);
+        setDbMode(data.dbMode.mode);
+      }
     } catch (e) {
       console.error(e);
     } finally {
