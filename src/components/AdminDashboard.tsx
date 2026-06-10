@@ -2193,7 +2193,7 @@ export default function AdminDashboard({
                 <div className="text-center py-5 text-muted small">No data segments found for trends.</div>
               ) : (
                 <div style={{ width: '100%', height: 300 }}>
-                  <ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" />

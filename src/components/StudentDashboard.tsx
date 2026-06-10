@@ -551,7 +551,7 @@ export default function StudentDashboard({
               {/* PieChart representation of student stats */}
               {attendanceList.length > 0 ? (
                 <div style={{ width: '100%', height: 180 }} className="d-flex justify-content-center">
-                  <ResponsiveContainer>
+                  <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={pieData}
