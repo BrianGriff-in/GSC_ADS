@@ -87,6 +87,15 @@ export default function AdminDashboard({
   const [editHistDate, setEditHistDate] = useState('');
   const [isUpdatingHist, setIsUpdatingHist] = useState(false);
 
+  // Print Report States
+  const [printData, setPrintData] = useState<{
+    type: 'daily' | 'monthly';
+    title: string;
+    subtitle: string;
+    metadata: Record<string, any>;
+    roster: any[];
+  } | null>(null);
+
   // Selected student details modal status
   const [viewingStudent, setViewingStudent] = useState<any | null>(null);
   const [resetPasswordInput, setResetPasswordInput] = useState('');
@@ -98,6 +107,66 @@ export default function AdminDashboard({
   // Stats and calculation
   const [attendanceStats, setAttendanceStats] = useState({ on_time: 0, late: 0, absent: 0 });
   const [studentsAbsenceHistory, setStudentsAbsenceHistory] = useState<Record<number, number>>({});
+
+  // Daily export (Specific meeting session)
+  const handleExportDailyPDF = (session: any, roster: any[]) => {
+    setPrintData({
+      type: 'daily',
+      title: `Daily Attendance Log: ${session.title}`,
+      subtitle: `Official record for session conducted on ${new Date(session.started_at).toLocaleDateString()}`,
+      metadata: {
+        "Session ID": session.id,
+        "Started At": new Date(session.started_at).toLocaleString(),
+        "Ended At": session.ended_at ? new Date(session.ended_at).toLocaleString() : "Active Session",
+        "Total Count": roster.length,
+        "On-Time/Present": roster.filter((r: any) => r.status === 'present' || r.status === 'on-time' || r.status === 'on_time').length,
+        "Late Check-ins": roster.filter((r: any) => r.status === 'late').length,
+        "Absent Count": roster.filter((r: any) => r.status === 'absent').length
+      },
+      roster: roster
+    });
+    
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  };
+
+  // Monthly export (Aggregated metrics matching currently filtered year & month)
+  const handleExportMonthlyPDF = async () => {
+    const currentYearNum = historyYearFilter === 'all' ? new Date().getFullYear() : parseInt(historyYearFilter);
+    const currentMonthNum = historyMonthFilter === 'all' ? (new Date().getMonth() + 1) : parseInt(historyMonthFilter);
+
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/admins/attendance/monthly-report?year=${currentYearNum}&month=${currentMonthNum}`);
+      if (!res.ok) throw new Error("Could not load monthly report");
+      const list = await res.json();
+      
+      setPrintData({
+        type: 'monthly',
+        title: `Monthly Attendance Consolidation Report`,
+        subtitle: `Consolidated record for ${historyMonthFilter === 'all' ? 'All Months' : 'Month ' + historyMonthFilter}, Year ${currentYearNum}`,
+        metadata: {
+          "Reporting Period": `${historyMonthFilter === 'all' ? 'Annual Summary' : 'Month ' + historyMonthFilter} / Year ${currentYearNum}`,
+          "Active Student Roster Size": list.length,
+          "Total Monthly Meetings Logged": historySessions.filter(s => 
+            (historyYearFilter === 'all' || s.year === currentYearNum) && 
+            (historyMonthFilter === 'all' || s.month === currentMonthNum)
+          ).length
+        },
+        roster: list
+      });
+
+      setTimeout(() => {
+        window.print();
+      }, 150);
+    } catch (e: any) {
+      console.error(e);
+      alert("Error printing monthly summary: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Fetch all datasets securely
   const fetchAllData = async (silent = false) => {
@@ -267,7 +336,15 @@ export default function AdminDashboard({
 
   const handleOverrideHistoricalAttendance = async (attendanceId: number, targetStatus: string) => {
     if (!viewingHistSession) return;
-    setSubmitting(true);
+    
+    // 1. Optimistic Update of local histRoster state immediately
+    setHistRoster((prev: any[]) => 
+      prev.map((r: any) => 
+        r.attendance_id === attendanceId ? { ...r, status: targetStatus } : r
+      )
+    );
+
+    // 2. Async Sync
     try {
       const res = await fetch("/api/admins/attendance/override", {
         method: "POST",
@@ -280,18 +357,14 @@ export default function AdminDashboard({
         })
       });
       const d = await res.json();
-      if (d.success) {
-        const rosterRes = await fetch(`/api/admins/sessions/${viewingHistSession.id}/roster`);
-        const rosterData = await rosterRes.json();
-        setHistRoster(rosterData);
-        await fetchAllData();
+      if (!d.success) {
+        alert(d.error || "Failed copy");
       } else {
-        alert(d.error || "Failed override");
+        // Silent back-end sync details
+        fetchAllData(true);
       }
     } catch (err: any) {
       console.error(err);
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -600,57 +673,78 @@ export default function AdminDashboard({
     );
   };
 
-  // Mark Present
+  // Mark Present - Instantly runs without blocking prompts & utilizes instant optimistic UI updates
   const handleMarkPresent = (attId: number, studName: string) => {
-    triggerConfirm(
-      "Mark Attendance Present",
-      `Mark student ${studName} as present? Click time will auto-determine On-Time (<=15 min mark) vs Late status.`,
-      async () => {
-        try {
-          const res = await fetch("/api/admins/attendance/mark-present", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              attendance_id: attId,
-              admin_id: userId,
-              admin_name: username
-            })
-          });
-          const data = await res.json();
-          if (data.status) {
-            alert(`Succeeded: Marked student as ${data.status.toUpperCase()}`);
-            fetchAllData();
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    );
+    // 1. Optimistic Update
+    if (activeSession && activeSession.roster) {
+      setActiveSession((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          roster: prev.roster.map((r: any) => 
+            r.attendance_id === attId 
+              ? { ...r, status: 'on_time', marked_at: new Date().toISOString() } 
+              : r
+          )
+        };
+      });
+    }
+
+    // 2. Async Sync
+    fetch("/api/admins/attendance/mark-present", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        attendance_id: attId,
+        admin_id: userId,
+        admin_name: username
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      // Background silent-sync to guarantee consistent counters/details
+      fetchAllData(true);
+    })
+    .catch(err => {
+      console.error("Async check-in failed:", err);
+    });
   };
 
-  // Override attendance (Edit/Undo action)
+  // Override attendance (Edit/Undo action) - Instantly mutates state optimistically
   const handleOverrideAttendance = (attId: number, targetStatus: string, studName: string) => {
-    triggerConfirm(
-      "Correction Override",
-      `Are you sure you want to change attendance status for '${studName}' to '${targetStatus.toUpperCase()}'?`,
-      async () => {
-        try {
-          await fetch("/api/admins/attendance/override", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              attendance_id: attId,
-              target_status: targetStatus,
-              admin_id: userId,
-              admin_name: username
-            })
-          });
-          fetchAllData();
-        } catch (e) {
-          console.error(e);
-        }
-      }
-    );
+    // 1. Optimistic Update
+    if (activeSession && activeSession.roster) {
+      setActiveSession((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          roster: prev.roster.map((r: any) => 
+            r.attendance_id === attId 
+              ? { ...r, status: targetStatus, marked_at: new Date().toISOString() } 
+              : r
+          )
+        };
+      });
+    }
+
+    // 2. Async Sync
+    fetch("/api/admins/attendance/override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        attendance_id: attId,
+        target_status: targetStatus,
+        admin_id: userId,
+        admin_name: username
+      })
+    })
+    .then(res => res.json())
+    .then(() => {
+      fetchAllData(true);
+    })
+    .catch(err => {
+      console.error("Async override failed:", err);
+    });
   };
 
   // Terminate Active Meeting
@@ -1870,6 +1964,12 @@ export default function AdminDashboard({
                   <option key={m} value={String(m)}>Month {m}</option>
                 ))}
               </select>
+              <button 
+                className="btn btn-sm btn-dark fw-bold px-3 d-flex align-items-center gap-1 text-nowrap"
+                onClick={handleExportMonthlyPDF}
+              >
+                🖨️ Export Monthly PDF
+              </button>
             </div>
           </div>
 
@@ -2190,13 +2290,22 @@ export default function AdminDashboard({
                 >
                   🗑️ Purge/Delete Session
                 </button>
-                <button 
-                  type="button" 
-                  className="btn btn-secondary rounded-0 btn-sm text-uppercase fw-bold px-4" 
-                  onClick={() => setViewingHistSession(null)}
-                >
-                  Close Panel
-                </button>
+                <div className="d-flex gap-2">
+                  <button 
+                    type="button" 
+                    className="btn btn-dark rounded-0 btn-sm text-uppercase fw-bold px-3 d-flex align-items-center gap-1"
+                    onClick={() => handleExportDailyPDF(viewingHistSession, histRoster)}
+                  >
+                    🖨️ Export PDF (Daily)
+                  </button>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary rounded-0 btn-sm text-uppercase fw-bold px-4" 
+                    onClick={() => setViewingHistSession(null)}
+                  >
+                    Close Panel
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -2204,6 +2313,121 @@ export default function AdminDashboard({
       )}
 
       <LoadingOverlay isOpen={(loading && isFirstLoad) || submitting} message={(loading && isFirstLoad) ? "Synchronizing database records..." : "Processing request..."} />
+
+      {/* --- OFFLINE/ONLINE PRINTER FRIENDLY REPORT DESIGN --- */}
+      {printData && (
+        <div className="print-report-layout" style={{ color: 'black', background: 'white' }}>
+          {/* Cover Header */}
+          <div style={{ textAlign: 'center', marginBottom: '30px', fontFamily: 'serif' }}>
+            <h4 style={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 5px 0', fontSize: '13pt' }}>ROYAL UNIVERSITY OF PHNOM PENH</h4>
+            <h5 style={{ fontWeight: 'normal', margin: '0 0 15px 0', fontSize: '10pt', letterSpacing: '0.5px' }}>DORMITORY MANAGEMENT DEPARTMENT</h5>
+            <div style={{ borderBottom: '2px double #000000', width: '80px', margin: '0 auto 25px auto' }}></div>
+            
+            <h3 className="print-title" style={{ fontWeight: 'bold', fontSize: '16pt', margin: '15px 0 5px 0' }}>{printData.title}</h3>
+            <p className="print-subtitle" style={{ fontSize: '10.5pt', fontStyle: 'italic', margin: '0 0 20px 0' }}>{printData.subtitle}</p>
+          </div>
+
+          {/* Stats Segment */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '25px', fontSize: '9.5pt', fontFamily: 'serif', borderBottom: '1.5px solid #000', paddingBottom: '15px' }}>
+            <div>
+              <strong>Report Generated On:</strong> {new Date().toLocaleDateString()}<br />
+              <strong>Authorized Custodian:</strong> Administrative Portal ({username})<br />
+              <strong>Sync Connection Indicator:</strong> {dbMode === 'Local SQLite-like File Fallback' ? 'Local Fallback' : 'Primary Cloud DB'}<br />
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              {Object.entries(printData.metadata).map(([key, val]) => (
+                <div key={key}>
+                  <strong>{key}:</strong> {val}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Record Logs Log List */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9.5pt', fontFamily: 'serif', marginTop: '15px' }}>
+            <thead>
+              {printData.type === 'daily' ? (
+                <tr>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt' }}>No.</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt' }}>Student Name</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt' }}>Gender</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt' }}>Room Assignment</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt' }}>Attendance Status</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt' }}>Marked At</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt', width: '120px' }}>Roster Signature</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt' }}>No.</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt' }}>Student Name</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt' }}>Gender</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt' }}>Room Unit</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'center', fontSize: '9.5pt' }}>Total Sessions</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'center', fontSize: '9.5pt', color: '#1a7f37' }}>On-Time</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'center', fontSize: '9.5pt', color: '#bc6d00' }}>Late</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'center', fontSize: '9.5pt', color: '#cf222e' }}>Absent</th>
+                  <th style={{ border: '1.5px solid black', padding: '8px', fontWeight: 'bold', backgroundColor: '#f2f2f2', textAlign: 'left', fontSize: '9.5pt', width: '130px' }}>Evaluation Flag</th>
+                </tr>
+              )}
+            </thead>
+            <tbody>
+              {printData.roster.map((row: any, idx: number) => (
+                printData.type === 'daily' ? (
+                  <tr key={row.attendance_id || idx} style={{ pageBreakInside: 'avoid' }}>
+                    <td style={{ border: '1px solid black', padding: '7px', fontSize: '9pt' }}>{idx + 1}</td>
+                    <td style={{ border: '1px solid black', padding: '7px', fontWeight: 'bold', fontSize: '9pt' }}>{row.first_name} {row.last_name}</td>
+                    <td style={{ border: '1px solid black', padding: '7px', textTransform: 'capitalize', fontSize: '9pt' }}>{row.sex}</td>
+                    <td style={{ border: '1px solid black', padding: '7px', fontSize: '9pt' }}>{row.room_label}</td>
+                    <td style={{ 
+                      border: '1px solid black', 
+                      padding: '7px', 
+                      fontSize: '9pt',
+                      fontWeight: 'bold',
+                      color: row.status === 'absent' ? '#cf222e' : row.status === 'late' ? '#bc6d00' : '#1a7f37'
+                    }}>
+                      {row.status.toUpperCase()}
+                    </td>
+                    <td style={{ border: '1px solid black', padding: '7px', fontSize: '9pt' }}>
+                      {row.marked_at ? new Date(row.marked_at).toLocaleString() : '-'}
+                    </td>
+                    <td style={{ border: '1px solid black', padding: '7px' }}></td>
+                  </tr>
+                ) : (
+                  <tr key={row.student_id || idx} style={{ pageBreakInside: 'avoid' }}>
+                    <td style={{ border: '1px solid black', padding: '7px', fontSize: '9pt' }}>{idx + 1}</td>
+                    <td style={{ border: '1px solid black', padding: '7px', fontWeight: 'bold', fontSize: '9pt' }}>{row.first_name} {row.last_name}</td>
+                    <td style={{ border: '1px solid black', padding: '7px', textTransform: 'capitalize', fontSize: '9pt' }}>{row.sex}</td>
+                    <td style={{ border: '1px solid black', padding: '7px', fontSize: '9pt' }}>{row.room_label}</td>
+                    <td style={{ border: '1px solid black', padding: '7px', textAlign: 'center', fontSize: '9pt' }}>{row.total_meetings}</td>
+                    <td style={{ border: '1px solid black', padding: '7px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', color: '#1a7f37' }}>{row.on_time_count}</td>
+                    <td style={{ border: '1px solid black', padding: '7px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', color: '#bc6d00' }}>{row.late_count}</td>
+                    <td style={{ border: '1px solid black', padding: '7px', textAlign: 'center', fontWeight: 'bold', fontSize: '9pt', color: '#cf222e' }}>{row.absent_count}</td>
+                    <td style={{ border: '1px solid black', padding: '7px', fontSize: '9pt' }}>
+                      {row.absent_count >= 3 ? '⚠️ FLAG RED ALERT' : '✅ EXCELLENT STANDING'}
+                    </td>
+                  </tr>
+                )
+              ))}
+            </tbody>
+          </table>
+
+          {/* Validation section */}
+          <div style={{ marginTop: '50px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '50px', fontSize: '10.5pt', fontFamily: 'serif', pageBreakInside: 'avoid' }}>
+            <div style={{ textAlign: 'center' }}>
+              <p>Prepared by:</p>
+              <div style={{ height: '60px' }}></div>
+              <p style={{ borderBottom: '1px solid #000000', display: 'inline-block', width: '180px' }}></p>
+              <p style={{ margin: '5px 0 0 0', fontStyle: 'italic', fontSize: '9.5pt' }}>Dormitory Gatekeeper / Assistant</p>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <p>Approved & Signed by:</p>
+              <div style={{ height: '60px' }}></div>
+              <p style={{ borderBottom: '1px solid #000000', display: 'inline-block', width: '180px' }}></p>
+              <p style={{ margin: '5px 0 0 0', fontWeight: 'bold', fontSize: '9.5pt', textTransform: 'uppercase' }}>DORMITORY DIRECTOR</p>
+            </div>
+          </div>
+        </div>
+      )}
 
 
     </div>

@@ -342,3 +342,72 @@ header.bg-dark {
   animation: flip-horizontal 2.5s infinite linear;
 }
 
+/* --- Printer-Friendly Report Styles --- */
+@media screen {
+  .print-report-layout {
+    display: none !important;
+  }
+}
+@media print {
+  /* Hide standard components completely on paper layouts */
+  #root, .modal-backdrop, .modal, header, nav, .btn, button, footer {
+    display: none !important;
+  }
+  
+  body {
+    background: #FFFFFF !important;
+    color: #000000 !important;
+  }
+
+  .print-report-layout {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100% !important;
+    background: #FFFFFF !important;
+    color: #000000 !important;
+    font-family: Georgia, serif !important; /* Formal font style */
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+    padding: 0px !important;
+    margin: 0px !important;
+  }
+
+  .print-report-layout table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-top: 15px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .print-report-layout th, 
+  .print-report-layout td {
+    border: 1px solid #000000 !important;
+    padding: 6px 10px !important;
+    font-size: 9pt !important;
+    color: #000000 !important;
+    background: transparent !important;
+  }
+
+  .print-report-layout th {
+    font-weight: bold !important;
+    background-color: #f2f2f2 !important;
+  }
+  
+  .print-report-layout tr {
+    page-break-inside: avoid !important;
+  }
+  
+  .print-title {
+    font-size: 16pt !important;
+    font-weight: bold !important;
+    text-transform: uppercase !important;
+  }
+  
+  .print-subtitle {
+    font-size: 10.5pt !important;
+    font-style: italic !important;
+  }
+}
+

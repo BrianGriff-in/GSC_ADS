@@ -1036,6 +1036,70 @@ app.get("/api/admins/students/absences", async (req, res) => {
   res.json(output);
 });
 
+app.get("/api/admins/attendance/monthly-report", async (req, res) => {
+  const year = parseInt(req.query.year as string) || new Date().getFullYear();
+  const month = parseInt(req.query.month as string) || (new Date().getMonth() + 1);
+
+  if (!useLocalFallback && pgPool) {
+    try {
+      const q = `
+        SELECT u.id as student_id, u.username as student_username, p.first_name, p.last_name, p.sex, COALESCE(r.room_label, 'Unassigned 🏠') as room_label,
+               COUNT(CASE WHEN a.status = 'on_time' OR a.status = 'on-time' OR a.status = 'present' THEN 1 END) as on_time_count,
+               COUNT(CASE WHEN a.status = 'late' THEN 1 END) as late_count,
+               COUNT(CASE WHEN a.status = 'absent' THEN 1 END) as absent_count,
+               COUNT(s.id) as total_meetings
+        FROM users u
+        INNER JOIN student_profiles p ON u.id = p.user_id
+        LEFT JOIN room_members rm ON u.id = rm.student_id
+        LEFT JOIN rooms r ON rm.room_id = r.id
+        LEFT JOIN attendance a ON u.id = a.student_id
+        LEFT JOIN meeting_sessions s ON a.session_id = s.id AND s.year = $1 AND s.month = $2
+        WHERE u.role = 'student'
+        GROUP BY u.id, u.username, p.first_name, p.last_name, p.sex, r.room_label
+        ORDER BY r.room_label ASC, u.username ASC
+      `;
+      const result = await pgPool.query(q, [year, month]);
+      return res.json(result.rows);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
+  // Fallback locally
+  try {
+    const monthSessions = localData.meeting_sessions.filter(s => s.year === year && s.month === month);
+    const sessionIds = monthSessions.map(s => s.id);
+
+    const report = localData.users.filter(u => u.role === "student").map(u => {
+      const p = localData.student_profiles.find(pr => pr.user_id === u.id) || {};
+      const rm = localData.room_members.find(m => m.student_id === u.id);
+      const r = rm ? localData.rooms.find(ro => ro.id === rm.room_id) : null;
+      
+      const studentAtts = localData.attendance.filter(a => a.student_id === u.id && sessionIds.includes(a.session_id));
+      const on_time = studentAtts.filter(a => ['on_time', 'on-time', 'present'].includes(a.status)).length;
+      const late = studentAtts.filter(a => a.status === 'late').length;
+      const absent = studentAtts.filter(a => a.status === 'absent').length;
+
+      return {
+        student_id: u.id,
+        student_username: u.username,
+        first_name: p.first_name || "",
+        last_name: p.last_name || "",
+        sex: p.sex || "male",
+        room_label: r ? r.room_label : "Unassigned 🏠",
+        on_time_count: on_time,
+        late_count: late,
+        absent_count: absent,
+        total_meetings: studentAtts.length
+      };
+    }).sort((a, b) => a.room_label.localeCompare(b.room_label) || a.student_username.localeCompare(b.student_username));
+
+    return res.json(report);
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/admins/students", async (req, res) => {
   if (!useLocalFallback && pgPool) {
     try {
